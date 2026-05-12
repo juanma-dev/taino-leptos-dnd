@@ -1,0 +1,7 @@
+edition = "2021"
+max_width = 100
+use_small_heuristics = "Max"
+reorder_imports = true
+newline_style = "Unix"
+# Nightly-only options (imports_granularity, group_imports) are kept out
+# so `cargo fmt` works on stable without warnings.

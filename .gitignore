@@ -1,0 +1,29 @@
+# Rust
+/target
+**/target
+Cargo.lock.bak
+
+# wasm-pack / trunk
+/dist
+/pkg
+**/dist
+**/pkg
+
+# IDE / OS
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Coverage
+/coverage
+*.profraw
+
+# Env
+.env
+.env.local

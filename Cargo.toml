@@ -1,0 +1,57 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/taino-dnd-core",
+    "crates/taino-dnd-leptos",
+]
+# Future members (Stage 3): "crates/taino-dnd-dioxus", "crates/taino-dnd-yew"
+
+[workspace.package]
+version = "0.0.1"
+edition = "2021"
+rust-version = "1.85"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/REPLACE_ME/taino-leptos-dnd"
+homepage = "https://github.com/REPLACE_ME/taino-leptos-dnd"
+authors = ["Taino DnD contributors"]
+keywords = ["drag-and-drop", "leptos", "wasm", "ui", "accessibility"]
+categories = ["wasm", "web-programming", "gui"]
+
+[workspace.dependencies]
+# Internal
+taino-dnd-core = { version = "0.0.1", path = "crates/taino-dnd-core" }
+
+# Leptos ecosystem (Stage 1 target — pin to a single minor for the workspace)
+leptos = { version = "0.7", default-features = false }
+
+# Browser glue (kept out of -core so it stays framework-agnostic)
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+web-sys = "0.3"
+
+# Diagnostics / tests
+thiserror = "1"
+wasm-bindgen-test = "0.3"
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+rust_2018_idioms = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+nursery = { level = "warn", priority = -1 }
+# Common pedantic noise we explicitly allow:
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"

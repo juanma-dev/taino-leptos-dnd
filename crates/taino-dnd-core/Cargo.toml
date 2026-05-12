@@ -1,0 +1,22 @@
+[package]
+name = "taino-dnd-core"
+description = "Framework-agnostic drag-and-drop primitives: geometry, state machine, collision."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords = ["drag-and-drop", "geometry", "state-machine", "no_std-friendly"]
+categories = ["algorithms", "data-structures", "no-std"]
+readme = "README.md"
+
+[dependencies]
+thiserror = { workspace = true }
+
+[dev-dependencies]
+# Reserved for proptest / criterion in later stages.
+
+[lints]
+workspace = true
