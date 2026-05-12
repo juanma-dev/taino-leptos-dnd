@@ -13,4 +13,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI workflow with `fmt`, `clippy`, `test`, `audit`, `deny`, and `doc` jobs.
 - Dual MIT / Apache-2.0 license.
 
-[Unreleased]: https://github.com/REPLACE_ME/taino-leptos-dnd/commits/main
+[Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

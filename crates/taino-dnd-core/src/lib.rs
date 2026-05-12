@@ -6,7 +6,7 @@
 //!
 //! See the workspace [`docs/ARCHITECTURE.md`] for the layering rationale.
 //!
-//! [`docs/ARCHITECTURE.md`]: https://github.com/REPLACE_ME/taino-leptos-dnd/blob/main/docs/ARCHITECTURE.md
+//! [`docs/ARCHITECTURE.md`]: https://github.com/juanma-dev/taino-leptos-dnd/blob/main/docs/ARCHITECTURE.md
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-core/0.0.1")]
 

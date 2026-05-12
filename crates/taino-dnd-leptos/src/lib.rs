@@ -11,7 +11,7 @@
 //! - [`use_dnd_context`] — pull the context out of any descendant.
 //!
 //! Hooks for `use_draggable` and `use_droppable` are next on the roadmap; see
-//! [`docs/ROADMAP.md`](https://github.com/REPLACE_ME/taino-leptos-dnd/blob/main/docs/ROADMAP.md).
+//! [`docs/ROADMAP.md`](https://github.com/juanma-dev/taino-leptos-dnd/blob/main/docs/ROADMAP.md).
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.0.1")]
 
