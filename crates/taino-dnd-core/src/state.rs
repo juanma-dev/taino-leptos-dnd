@@ -58,6 +58,24 @@ pub enum DragState {
 }
 
 impl DragState {
+    /// The id associated with the current state, if any.
+    ///
+    /// Returns `Some` for [`Self::Pressed`], [`Self::Dragging`], and
+    /// [`Self::Dropping`]; `None` for [`Self::Idle`].
+    pub const fn dragged_id(self) -> Option<DraggableId> {
+        match self {
+            Self::Idle => None,
+            Self::Pressed { id, .. } | Self::Dragging { id, .. } | Self::Dropping { id } => {
+                Some(id)
+            }
+        }
+    }
+
+    /// `true` while a drag is actively in progress (past the click threshold).
+    pub const fn is_dragging(self) -> bool {
+        matches!(self, Self::Dragging { .. })
+    }
+
     const fn name(self) -> &'static str {
         match self {
             Self::Idle => "Idle",
@@ -275,6 +293,26 @@ mod tests {
         let id = DraggableId(3);
         let s = transition(DragState::Dropping { id }, DragEvent::Settle, T).unwrap();
         assert_eq!(s, DragState::Idle);
+    }
+
+    #[test]
+    fn dragged_id_reports_for_each_active_state() {
+        let id = DraggableId(7);
+        let at = Point::new(1.0, 2.0);
+        assert_eq!(DragState::Idle.dragged_id(), None);
+        assert_eq!(DragState::Pressed { id, start: at }.dragged_id(), Some(id));
+        assert_eq!(DragState::Dragging { id, start: at, current: at }.dragged_id(), Some(id));
+        assert_eq!(DragState::Dropping { id }.dragged_id(), Some(id));
+    }
+
+    #[test]
+    fn is_dragging_only_true_for_dragging() {
+        let id = DraggableId(7);
+        let at = Point::new(1.0, 2.0);
+        assert!(!DragState::Idle.is_dragging());
+        assert!(!DragState::Pressed { id, start: at }.is_dragging());
+        assert!(DragState::Dragging { id, start: at, current: at }.is_dragging());
+        assert!(!DragState::Dropping { id }.is_dragging());
     }
 
     #[test]

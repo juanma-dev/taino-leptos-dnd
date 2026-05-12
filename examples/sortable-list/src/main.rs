@@ -8,7 +8,9 @@
 
 use leptos::prelude::*;
 use taino_dnd_core::{DraggableId, DroppableId};
-use taino_dnd_leptos::{provide_dnd_context, use_draggable, use_droppable, DndAnnouncer};
+use taino_dnd_leptos::{
+    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
+};
 
 #[derive(Clone)]
 struct Item {
@@ -35,6 +37,8 @@ fn App() -> impl IntoView {
         }
     });
 
+    let items_for_overlay = items;
+
     view! {
         <DndAnnouncer/>
         <h1>"taino-leptos-dnd — sortable list"</h1>
@@ -49,6 +53,16 @@ fn App() -> impl IntoView {
                 children=move |item| view! { <Row item /> }
             />
         </div>
+        <DragOverlay>
+            {move || {
+                let ctx = use_dnd_context();
+                ctx.state.get().dragged_id().and_then(|id| {
+                    items_for_overlay
+                        .with(|v| v.iter().find(|i| i.id == id.0).map(|i| i.label.clone()))
+                        .map(|label| view! { <div class="overlay-card">{label}</div> })
+                })
+            }}
+        </DragOverlay>
         <footer>"Stage 2 demo · v0.0.1"</footer>
     }
 }
@@ -75,7 +89,7 @@ fn Row(item: Item) -> impl IntoView {
                 on:pointerup=move |e| d.on_pointer_up(&e)
                 on:pointercancel=move |e| d.on_pointer_cancel(&e)
                 on:keydown=move |e| d.on_key_down(&e)
-                style=move || d.style()
+                style=move || d.style_pinned()
             >
                 {item.label}
             </div>

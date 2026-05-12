@@ -32,5 +32,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   helpers in `taino-dnd-leptos`. Modifiers run on the *output* of the state
   machine (preserving the click-vs-drag threshold) and feed both the visual
   `transform` signal and the collision-detection point.
+- Stage 2 `DragOverlay` component: a fixed-position, pointer-events-none
+  layer that mirrors the active drag at the modifier-adjusted pointer
+  position. Plus `UseDraggable::style_pinned()` for source elements that
+  delegate their visual preview to the overlay, and helpers
+  `DragState::dragged_id()` / `DragState::is_dragging()` on the core enum.
+  The sortable-list example now demonstrates the overlay pattern.
 
 [Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

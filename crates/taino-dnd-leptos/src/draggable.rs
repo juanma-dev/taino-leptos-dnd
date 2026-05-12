@@ -245,6 +245,18 @@ impl UseDraggable {
         }
     }
 
+    /// Inline CSS for the source element **when a [`DragOverlay`] is in use**.
+    ///
+    /// Unlike [`Self::style`], the source element is **not** translated — the
+    /// overlay takes over the visual preview, so leaving the source pinned in
+    /// place is the correct behavior. `touch-action: none` and `user-select:
+    /// none` are still applied so pointer events route cleanly.
+    ///
+    /// [`DragOverlay`]: crate::DragOverlay
+    pub const fn style_pinned(self) -> &'static str {
+        "touch-action: none; user-select: none;"
+    }
+
     fn is_my_state(self, state: DragState) -> bool {
         matches!(state,
             DragState::Pressed { id, .. } | DragState::Dragging { id, .. } if id == self.id
