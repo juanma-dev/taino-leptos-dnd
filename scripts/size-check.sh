@@ -28,9 +28,9 @@ cd "$REPO_ROOT"
 echo "==> Building $PKG (release, wasm32)..."
 cargo build -p "$PKG" --target wasm32-unknown-unknown --release
 
-# Cargo replaces `-` with `_` in artifact filenames.
-PKG_UNDERSCORE="${PKG//-/_}"
-RAW_WASM="$TARGET_DIR/${PKG_UNDERSCORE}.wasm"
+# Binary artifacts keep the package name verbatim (hyphens included).
+# Library `.rlib`s would get underscores; binaries don't.
+RAW_WASM="$TARGET_DIR/${PKG}.wasm"
 
 if [ ! -f "$RAW_WASM" ]; then
     echo "::error::Expected $RAW_WASM not found after build."
@@ -39,18 +39,36 @@ fi
 
 mkdir -p "$OUT_DIR"
 
+# Force a stable output name so we don't have to guess wasm-bindgen's
+# hyphen-vs-underscore convention.
+OUT_NAME="bundle"
+
 echo "==> Running wasm-bindgen..."
 wasm-bindgen \
     --target web \
     --out-dir "$OUT_DIR" \
+    --out-name "$OUT_NAME" \
     --no-typescript \
     "$RAW_WASM"
 
-BG_WASM="$OUT_DIR/${PKG_UNDERSCORE}_bg.wasm"
+BG_WASM="$OUT_DIR/${OUT_NAME}_bg.wasm"
 OPTIMIZED="$OUT_DIR/optimized.wasm"
 
 echo "==> Running wasm-opt -Oz..."
-wasm-opt -Oz --strip-debug --strip-producers -o "$OPTIMIZED" "$BG_WASM"
+# Modern rustc + wasm-bindgen emit wasm that uses post-MVP features.
+# wasm-opt validates strictly, so we have to enable the matching set.
+wasm-opt \
+    -Oz \
+    --enable-bulk-memory \
+    --enable-bulk-memory-opt \
+    --enable-mutable-globals \
+    --enable-nontrapping-float-to-int \
+    --enable-sign-ext \
+    --enable-reference-types \
+    --enable-multivalue \
+    --strip-debug \
+    --strip-producers \
+    -o "$OPTIMIZED" "$BG_WASM"
 
 # stat invocation differs between Linux (-c%s) and macOS (-f%z).
 file_size() {
