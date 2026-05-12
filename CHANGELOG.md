@@ -26,5 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   component rendering a polite live region. Pickup / move / drop / cancel
   all emit announcements.
 - README updated with a self-contained quick-start snippet.
+- Stage 2 modifiers: `Modifier::RestrictToAxis`, `Modifier::SnapToGrid`,
+  `Axis`, `Vector`, and `apply_chain` in `taino-dnd-core`.
+  `DndContext::modifiers` signal plus `push_modifier` / `set_modifiers`
+  helpers in `taino-dnd-leptos`. Modifiers run on the *output* of the state
+  machine (preserving the click-vs-drag threshold) and feed both the visual
+  `transform` signal and the collision-detection point.
 
 [Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

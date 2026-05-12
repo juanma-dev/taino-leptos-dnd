@@ -52,6 +52,9 @@ impl UseDraggable {
 
     /// `on:pointermove` handler.
     pub fn on_pointer_move(self, ev: &web_sys::PointerEvent) {
+        // Raw position drives the state machine (so the click-vs-drag
+        // threshold isn't broken by an axis lock). The modifier chain runs
+        // afterwards to produce the effective position used for collision.
         let at = Point::new(ev.client_x().into(), ev.client_y().into());
         let current = self.ctx.state.get_untracked();
         if !self.is_my_state(current) {
@@ -61,8 +64,9 @@ impl UseDraggable {
             transition(current, DragEvent::PointerMove { at }, DEFAULT_DRAG_THRESHOLD)
         {
             self.ctx.state.set(state);
-            if matches!(state, DragState::Dragging { .. }) {
-                self.ctx.update_over(at);
+            if let DragState::Dragging { start, .. } = state {
+                let effective = self.ctx.effective_point(start, at);
+                self.ctx.update_over(effective);
             }
         }
     }
@@ -300,7 +304,9 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
 
     let transform = Signal::derive(move || match ctx.state.get() {
         DragState::Dragging { id: dragged, start, current } if dragged == id => {
-            (current.x - start.x, current.y - start.y)
+            let raw = taino_dnd_core::Vector::new(current.x - start.x, current.y - start.y);
+            let modified = ctx.modify(raw);
+            (modified.x, modified.y)
         }
         _ => (0.0, 0.0),
     });

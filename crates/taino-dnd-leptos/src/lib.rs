@@ -50,6 +50,9 @@ pub use announcer::DndAnnouncer;
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};
+// Re-exports for ergonomics: configuring modifiers shouldn't require an
+// extra dependency on `taino-dnd-core`.
+pub use taino_dnd_core::{Axis, Modifier, Vector};
 
 #[cfg(test)]
 mod tests {

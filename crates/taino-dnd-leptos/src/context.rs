@@ -7,7 +7,8 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use taino_dnd_core::{
-    closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId, Point, Rect,
+    apply_chain, closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId,
+    Modifier, Point, Rect, Vector,
 };
 
 /// Shared drag-and-drop state installed at the root of a region that uses
@@ -30,6 +31,13 @@ pub struct DndContext {
     /// Latest screen-reader announcement. Mirrored into a polite ARIA live
     /// region by [`DndAnnouncer`](crate::DndAnnouncer).
     pub announcement: RwSignal<String>,
+    /// Ordered list of [`Modifier`]s applied to the drag displacement before
+    /// it's used for the visual transform and for collision detection.
+    ///
+    /// The list is empty by default. Mutate with [`DndContext::push_modifier`]
+    /// / [`DndContext::set_modifiers`], or read/write the signal directly for
+    /// reactive control.
+    pub modifiers: RwSignal<Vec<Modifier>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -50,6 +58,7 @@ impl Default for DndContext {
             over: RwSignal::new(None),
             last_drop: RwSignal::new(None),
             announcement: RwSignal::new(String::new()),
+            modifiers: RwSignal::new(Vec::new()),
         }
     }
 }
@@ -113,6 +122,38 @@ impl DndContext {
     /// add throttling later if needed.
     pub fn announce(self, message: impl Into<String>) {
         self.announcement.set(message.into());
+    }
+
+    /// Append a single [`Modifier`] to the chain.
+    ///
+    /// ```no_run
+    /// use taino_dnd_leptos::{provide_dnd_context, Axis, Modifier};
+    ///
+    /// let ctx = provide_dnd_context();
+    /// // Lock all drags in this scope to the vertical axis.
+    /// ctx.push_modifier(Modifier::RestrictToAxis(Axis::Y));
+    /// // ...and snap to an 8 px grid on the way down.
+    /// ctx.push_modifier(Modifier::SnapToGrid { x: 8.0, y: 8.0 });
+    /// ```
+    pub fn push_modifier(self, modifier: Modifier) {
+        self.modifiers.update(|ms| ms.push(modifier));
+    }
+
+    /// Replace the entire modifier chain.
+    pub fn set_modifiers(self, modifiers: Vec<Modifier>) {
+        self.modifiers.set(modifiers);
+    }
+
+    /// Run the current modifier chain over a raw displacement.
+    pub(crate) fn modify(self, raw: Vector) -> Vector {
+        self.modifiers.with(|ms| apply_chain(ms, raw))
+    }
+
+    /// Convenience: turn a raw pointer position into the post-modifier
+    /// effective position, given the drag's starting point.
+    pub(crate) fn effective_point(self, start: Point, raw: Point) -> Point {
+        let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
+        Point::new(start.x + v.x, start.y + v.y)
     }
 }
 
