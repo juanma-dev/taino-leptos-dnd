@@ -5,6 +5,13 @@ all-features = true
 db-path = "~/.cargo/advisory-db"
 db-urls = ["https://github.com/rustsec/advisory-db"]
 yanked = "deny"
+ignore = [
+    # `paste` is unmaintained (creator archived the repo). It's still
+    # pulled in transitively by Leptos's reactive_stores / tachys / etc.
+    # No security issue, no actionable fix on our side. Re-evaluate when
+    # we bump Leptos.
+    "RUSTSEC-2024-0436",
+]
 
 [licenses]
 allow = [
@@ -13,6 +20,7 @@ allow = [
     "Apache-2.0 WITH LLVM-exception",
     "BSD-2-Clause",
     "BSD-3-Clause",
+    "BSL-1.0",          # Boost Software License — used by xxhash-rust (server_fn)
     "ISC",
     "Unicode-3.0",
     "Unicode-DFS-2016",

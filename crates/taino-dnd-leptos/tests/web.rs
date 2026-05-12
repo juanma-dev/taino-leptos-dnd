@@ -1,13 +1,17 @@
-//! Browser-side smoke test. Run with:
+//! wasm32 smoke test. Runs in Node by default (via `wasm-bindgen-test-runner`),
+//! exercising only the pure-reactivity layer of the public API.
 //!
 //! ```sh
-//! wasm-pack test --headless --chrome -p taino-dnd-leptos
+//! # local (Node):
+//! cargo test -p taino-dnd-leptos --target wasm32-unknown-unknown
+//!
+//! # with a real browser (CI installs chromedriver):
+//! NO_HEADLESS=1 wasm-pack test --chrome -p taino-dnd-leptos
 //! ```
 //!
-//! Stage 1 keeps this minimal: a single test that asserts the public hooks
-//! can be called inside a Leptos `Owner` scope without panicking. Real
-//! end-to-end interaction tests land in Stage 2 once the keyboard sensor
-//! gives us a deterministic input path.
+//! Real DOM-interaction tests (mounting components, dispatching synthetic
+//! pointer events) belong in a future browser-only test suite; this file
+//! intentionally avoids DOM so it can run anywhere wasm-bindgen-test does.
 
 #![cfg(target_arch = "wasm32")]
 
@@ -15,9 +19,6 @@ use leptos::prelude::*;
 use leptos::reactive::owner::Owner;
 use taino_dnd_core::{DragState, DraggableId, DroppableId};
 use taino_dnd_leptos::{provide_dnd_context, use_dnd_context, use_draggable, use_droppable};
-use wasm_bindgen_test::wasm_bindgen_test_configure;
-
-wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test::wasm_bindgen_test]
 fn public_api_smoke() {

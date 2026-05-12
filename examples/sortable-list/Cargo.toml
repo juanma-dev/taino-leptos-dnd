@@ -8,8 +8,8 @@ license.workspace = true
 
 [dependencies]
 leptos = { workspace = true, features = ["csr"] }
-taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos" }
-taino-dnd-core = { path = "../../crates/taino-dnd-core" }
+taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos", version = "0.0.1" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.0.1" }
 console_error_panic_hook = "0.1"
 wasm-bindgen = { workspace = true }
 

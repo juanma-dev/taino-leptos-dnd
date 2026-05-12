@@ -1,0 +1,6 @@
+# Use wasm-bindgen-test-runner to execute `cargo test --target
+# wasm32-unknown-unknown`. The runner picks Node (default) or a headless
+# browser depending on `wasm_bindgen_test_configure!(run_in_browser)`
+# in the test crate.
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
