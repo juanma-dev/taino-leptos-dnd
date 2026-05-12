@@ -38,5 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   delegate their visual preview to the overlay, and helpers
   `DragState::dragged_id()` / `DragState::is_dragging()` on the core enum.
   The sortable-list example now demonstrates the overlay pattern.
+- Stage 2 viewport auto-scroll. New `taino-dnd-core::autoscroll` module
+  with a pure `scroll_velocity` function and `AutoScrollConfig`
+  (threshold + max speed + enabled flag). `provide_dnd_context()`
+  installs a `requestAnimationFrame` loop that, while a drag is active,
+  scrolls the window when the pointer approaches a viewport edge.
+  `DndContext.measurement_tick` makes `use_droppable` re-measure
+  bounding rects on each scroll step so collision detection stays
+  accurate.
 
 [Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

@@ -40,6 +40,7 @@
 #![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.0.1")]
 
 mod announcer;
+mod autoscroll;
 mod context;
 #[cfg(target_arch = "wasm32")]
 mod dom;
@@ -52,9 +53,9 @@ pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};
 pub use overlay::DragOverlay;
-// Re-exports for ergonomics: configuring modifiers shouldn't require an
-// extra dependency on `taino-dnd-core`.
-pub use taino_dnd_core::{Axis, Modifier, Vector};
+// Re-exports for ergonomics: configuring modifiers and auto-scroll shouldn't
+// require an extra dependency on `taino-dnd-core`.
+pub use taino_dnd_core::{AutoScrollConfig, Axis, Modifier, Vector};
 
 #[cfg(test)]
 mod tests {

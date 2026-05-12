@@ -10,12 +10,14 @@
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-core/0.0.1")]
 
+pub mod autoscroll;
 pub mod collision;
 pub mod error;
 pub mod geometry;
 pub mod modifier;
 pub mod state;
 
+pub use autoscroll::{scroll_velocity, AutoScrollConfig};
 pub use collision::{closest_center, spatial_neighbor, Direction};
 pub use error::Error;
 pub use geometry::{Point, Rect};

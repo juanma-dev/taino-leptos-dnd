@@ -7,8 +7,8 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use taino_dnd_core::{
-    apply_chain, closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId,
-    Modifier, Point, Rect, Vector,
+    apply_chain, closest_center, spatial_neighbor, AutoScrollConfig, Direction, DragState,
+    DraggableId, DroppableId, Modifier, Point, Rect, Vector,
 };
 
 /// Shared drag-and-drop state installed at the root of a region that uses
@@ -38,6 +38,14 @@ pub struct DndContext {
     /// / [`DndContext::set_modifiers`], or read/write the signal directly for
     /// reactive control.
     pub modifiers: RwSignal<Vec<Modifier>>,
+    /// Auto-scroll configuration. Drives the viewport-edge auto-scroll
+    /// behavior during a drag. Set `enabled` to `false` to opt out.
+    pub auto_scroll: RwSignal<AutoScrollConfig>,
+    /// Bump-counter signal that asks all `use_droppable` instances to
+    /// re-measure their bounding rects on the next tick. Incremented by the
+    /// auto-scroll loop after a `scrollBy` so collision detection uses
+    /// up-to-date rects.
+    pub(crate) measurement_tick: RwSignal<u64>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -59,6 +67,8 @@ impl Default for DndContext {
             last_drop: RwSignal::new(None),
             announcement: RwSignal::new(String::new()),
             modifiers: RwSignal::new(Vec::new()),
+            auto_scroll: RwSignal::new(AutoScrollConfig::default()),
+            measurement_tick: RwSignal::new(0),
         }
     }
 }
@@ -155,16 +165,29 @@ impl DndContext {
         let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
         Point::new(start.x + v.x, start.y + v.y)
     }
+
+    /// Ask all live `use_droppable` instances to re-measure their bounding
+    /// rects on the next reactive tick. Called from the auto-scroll loop
+    /// after a `scrollBy`.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn request_remeasure(self) {
+        self.measurement_tick.update(|t| *t = t.wrapping_add(1));
+    }
 }
 
 /// Install a [`DndContext`] for descendants. Call once near the root of your
 /// drag-and-drop region (typically inside the top-level component for a page
 /// or a board).
 ///
+/// Also installs the viewport auto-scroll loop, which kicks in whenever the
+/// state enters `Dragging` and the pointer is near a viewport edge. Disable
+/// via `ctx.auto_scroll.update(|c| c.enabled = false)`.
+///
 /// Returns the context so the caller can keep a handle if desired.
 pub fn provide_dnd_context() -> DndContext {
     let ctx = DndContext::default();
     provide_context(ctx);
+    crate::autoscroll::install(ctx);
     ctx
 }
 
