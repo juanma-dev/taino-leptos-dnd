@@ -104,6 +104,26 @@ jobs:
       - uses: actions/checkout@v4
       - uses: EmbarkStudios/cargo-deny-action@v2
 
+  size-budget:
+    name: WASM size budget
+    runs-on: ubuntu-latest
+    env:
+      # Initial budget for the gzipped, wasm-opt -Oz'd sortable-list example.
+      # Bump with a note in the PR description if a justified increase happens.
+      BUDGET_GZIP_KB: 400
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          # wasm-bindgen-cli version must match the wasm-bindgen crate in
+          # Cargo.lock (currently 0.2.121).
+          tool: wasm-bindgen-cli@0.2.121,binaryen
+      - run: bash scripts/size-check.sh
+
   docs:
     name: docs
     runs-on: ubuntu-latest

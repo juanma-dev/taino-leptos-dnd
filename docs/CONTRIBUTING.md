@@ -17,7 +17,16 @@ Inside WSL (or any Unix-like shell):
 ```bash
 rustup target add wasm32-unknown-unknown
 cargo install --locked cargo-deny cargo-audit trunk wasm-bindgen-cli
+# Binaryen for the size budget. Distros vary:
+#   Debian/Ubuntu: sudo apt-get install binaryen
+#   macOS:         brew install binaryen
+#   Arch:          sudo pacman -S binaryen
 ```
+
+`wasm-bindgen-cli`'s version must match the `wasm-bindgen` crate in
+`Cargo.lock`. CI pins the version explicitly; if you see a mismatch
+locally, re-run `cargo install --locked wasm-bindgen-cli@<version>` with
+the version from the lockfile.
 
 ## Pre-commit checks
 
@@ -30,6 +39,8 @@ cargo test --workspace
 cargo doc --no-deps --workspace
 cargo deny check
 cargo audit
+# Size budget (needs wasm-bindgen-cli + binaryen, see Local setup)
+bash scripts/size-check.sh
 ```
 
 CI runs the same set. PRs that don't pass CI will not be reviewed.

@@ -59,6 +59,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   classic First/Last/Invert/Play technique with CSS transitions and
   a forced reflow. Suppressed during active drag, respects
   `prefers-reduced-motion`. Demonstrated in the sortable-list example.
+- Stage 2 WASM size budget. New `scripts/size-check.sh` builds the
+  sortable-list example, runs it through `wasm-bindgen` + `wasm-opt -Oz`,
+  gzips the result, and fails when it exceeds a budget (default 400 KB
+  gzipped, overridable via `BUDGET_GZIP_KB`). The new `size-budget` CI
+  job runs the same script on every push/PR with prebuilt tools from
+  `taiki-e/install-action`.
 
 ### Changed
 - `Modifier::apply` and `apply_chain` now take a `&ModifierContext`.
