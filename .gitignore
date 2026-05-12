@@ -27,3 +27,6 @@ Thumbs.db
 # Env
 .env
 .env.local
+
+# Local Claude Code / agent settings (user-specific permission grants).
+.claude/

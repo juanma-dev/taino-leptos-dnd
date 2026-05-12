@@ -15,7 +15,7 @@ pub mod error;
 pub mod geometry;
 pub mod state;
 
-pub use collision::closest_center;
+pub use collision::{closest_center, spatial_neighbor, Direction};
 pub use error::Error;
 pub use geometry::{Point, Rect};
 pub use state::{

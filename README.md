@@ -35,6 +35,52 @@ See [`docs/ROADMAP.md`](docs/ROADMAP.md). The project ships in three stages:
 2. **Production-grade** — accessibility, keyboard sensor, animations, auto-scroll, modifiers.
 3. **Multi-framework** — extract `taino-dnd-core`, build Dioxus binding as proof.
 
+## Quick start
+
+```rust
+use leptos::prelude::*;
+use taino_dnd_core::{DraggableId, DroppableId};
+use taino_dnd_leptos::{
+    provide_dnd_context, use_draggable, use_droppable, DndAnnouncer,
+};
+
+#[component]
+fn Row(id: u64, label: String) -> impl IntoView {
+    let d = use_draggable(DraggableId(id));
+    let z = use_droppable(DroppableId(id));
+    view! {
+        <div node_ref=z.node_ref class:over=move || z.is_over.get()>
+            <div
+                node_ref=d.node_ref
+                tabindex="0"
+                role="button"
+                aria-roledescription="draggable item"
+                on:pointerdown=move |e| d.on_pointer_down(&e)
+                on:pointermove=move |e| d.on_pointer_move(&e)
+                on:pointerup=move |e| d.on_pointer_up(&e)
+                on:pointercancel=move |e| d.on_pointer_cancel(&e)
+                on:keydown=move |e| d.on_key_down(&e)
+                style=move || d.style()
+            >
+                {label}
+            </div>
+        </div>
+    }
+}
+
+#[component]
+fn App() -> impl IntoView {
+    provide_dnd_context();
+    view! {
+        <DndAnnouncer/>
+        <Row id=1 label="First".into() />
+        <Row id=2 label="Second".into() />
+    }
+}
+```
+
+See [`examples/sortable-list`](examples/sortable-list) for a full reordering demo.
+
 ## Building
 
 ```bash

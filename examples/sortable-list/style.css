@@ -68,6 +68,11 @@ p.hint {
   cursor: grab;
 }
 
+.item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .item.dragging {
   cursor: grabbing;
   opacity: 0.6;

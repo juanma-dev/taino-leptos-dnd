@@ -89,6 +89,17 @@ pub enum DragEvent {
     Cancel,
     /// Bindings finished any drop animation and the state should return to [`DragState::Idle`].
     Settle,
+    /// A non-pointer sensor (typically the keyboard) directly enters a drag.
+    ///
+    /// Unlike [`Self::PointerDown`], this skips the `Pressed` threshold and
+    /// transitions straight to [`DragState::Dragging`].
+    KeyboardPickUp {
+        /// Draggable being picked up.
+        id: DraggableId,
+        /// Initial position to record as both `start` and `current`. Most callers
+        /// pass the element's bounding-rect center.
+        at: Point,
+    },
 }
 
 impl DragEvent {
@@ -99,6 +110,7 @@ impl DragEvent {
             Self::PointerUp => "PointerUp",
             Self::Cancel => "Cancel",
             Self::Settle => "Settle",
+            Self::KeyboardPickUp { .. } => "KeyboardPickUp",
         }
     }
 }
@@ -139,6 +151,11 @@ pub fn transition(state: DragState, event: DragEvent, threshold: f64) -> Result<
         // Idle → Pressed
         (DragState::Idle, DragEvent::PointerDown { id, at }) => {
             Ok(DragState::Pressed { id, start: at })
+        }
+
+        // Idle → Dragging (keyboard sensor, no threshold)
+        (DragState::Idle, DragEvent::KeyboardPickUp { id, at }) => {
+            Ok(DragState::Dragging { id, start: at, current: at })
         }
 
         // Pressed → Dragging (if moved past threshold) or stay Pressed
@@ -258,6 +275,23 @@ mod tests {
         let id = DraggableId(3);
         let s = transition(DragState::Dropping { id }, DragEvent::Settle, T).unwrap();
         assert_eq!(s, DragState::Idle);
+    }
+
+    #[test]
+    fn keyboard_pickup_goes_idle_to_dragging() {
+        let id = DraggableId(11);
+        let at = Point::new(50.0, 50.0);
+        let s = transition(DragState::Idle, DragEvent::KeyboardPickUp { id, at }, T).unwrap();
+        assert_eq!(s, DragState::Dragging { id, start: at, current: at });
+    }
+
+    #[test]
+    fn keyboard_pickup_rejected_when_already_dragging() {
+        let id = DraggableId(11);
+        let at = Point::new(50.0, 50.0);
+        let dragging = DragState::Dragging { id, start: at, current: at };
+        let err = transition(dragging, DragEvent::KeyboardPickUp { id, at }, T).unwrap_err();
+        assert!(err.to_string().contains("KeyboardPickUp"));
     }
 
     #[test]

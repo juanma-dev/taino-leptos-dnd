@@ -6,7 +6,9 @@
 use std::collections::HashMap;
 
 use leptos::prelude::*;
-use taino_dnd_core::{closest_center, DragState, DraggableId, DroppableId, Point, Rect};
+use taino_dnd_core::{
+    closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId, Point, Rect,
+};
 
 /// Shared drag-and-drop state installed at the root of a region that uses
 /// `taino-dnd-leptos`.
@@ -25,6 +27,9 @@ pub struct DndContext {
     /// destination. Cleared back to `None` when [`DndContext::clear_last_drop`]
     /// is called or when a new drag starts.
     pub last_drop: RwSignal<Option<DropResult>>,
+    /// Latest screen-reader announcement. Mirrored into a polite ARIA live
+    /// region by [`DndAnnouncer`](crate::DndAnnouncer).
+    pub announcement: RwSignal<String>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -44,6 +49,7 @@ impl Default for DndContext {
             droppables: RwSignal::new(HashMap::new()),
             over: RwSignal::new(None),
             last_drop: RwSignal::new(None),
+            announcement: RwSignal::new(String::new()),
         }
     }
 }
@@ -86,6 +92,27 @@ impl DndContext {
     /// Clear [`DndContext::last_drop`] after the caller has consumed it.
     pub fn clear_last_drop(self) {
         self.last_drop.set(None);
+    }
+
+    /// Move keyboard-driven focus to a neighbor droppable in `direction`.
+    ///
+    /// Returns the new `over` id (or the old one if no neighbor exists).
+    pub(crate) fn keyboard_step(self, direction: Direction) -> Option<DroppableId> {
+        let from = self.over.get_untracked()?;
+        let next = self
+            .droppables
+            .with(|map| spatial_neighbor(from, direction, map.iter().map(|(id, r)| (*id, *r))));
+        if let Some(id) = next {
+            self.over.set(Some(id));
+        }
+        next.or(Some(from))
+    }
+
+    /// Push a screen-reader announcement. Equivalent to writing into
+    /// [`Self::announcement`] but kept as a method for symmetry and so we can
+    /// add throttling later if needed.
+    pub fn announce(self, message: impl Into<String>) {
+        self.announcement.set(message.into());
     }
 }
 

@@ -39,12 +39,14 @@
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.0.1")]
 
+mod announcer;
 mod context;
 #[cfg(target_arch = "wasm32")]
 mod dom;
 mod draggable;
 mod droppable;
 
+pub use announcer::DndAnnouncer;
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};

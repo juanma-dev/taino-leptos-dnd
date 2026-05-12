@@ -17,5 +17,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `use_draggable`, `use_droppable`, `DropResult`.
 - `examples/sortable-list`: end-to-end Trunk demo with reordering.
 - `wasm-bindgen-test` smoke test in `crates/taino-dnd-leptos/tests/web.rs`.
+- Stage 2 accessibility prep: `Direction` enum and
+  `taino-dnd-core::spatial_neighbor` strategy for arrow-key navigation.
+- Stage 2 keyboard sensor: `DragEvent::KeyboardPickUp`; new
+  `UseDraggable::on_key_down` covering Space/Enter pickup & drop, arrow keys
+  for movement, and Escape for cancel.
+- Stage 2 ARIA: `DndContext::announcement` signal and `DndAnnouncer`
+  component rendering a polite live region. Pickup / move / drop / cancel
+  all emit announcements.
+- README updated with a self-contained quick-start snippet.
 
 [Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

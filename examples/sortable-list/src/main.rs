@@ -2,10 +2,13 @@
 //!
 //! Each list row is a droppable. Inside each row, a draggable handle covers
 //! the row's content. Dragging item A onto row B inserts A at B's slot.
+//!
+//! Keyboard: focus a row (Tab), press Space or Enter to pick up, arrow keys
+//! to move, Space/Enter to drop, Escape to cancel.
 
 use leptos::prelude::*;
 use taino_dnd_core::{DraggableId, DroppableId};
-use taino_dnd_leptos::{provide_dnd_context, use_draggable, use_droppable};
+use taino_dnd_leptos::{provide_dnd_context, use_draggable, use_droppable, DndAnnouncer};
 
 #[derive(Clone)]
 struct Item {
@@ -21,7 +24,6 @@ fn App() -> impl IntoView {
         (1..=6_u64).map(|id| Item { id, label: format!("Item #{id}") }).collect::<Vec<_>>(),
     );
 
-    // React to a successful drop: move `draggable` to the slot occupied by `over`.
     Effect::new(move |_| {
         if let Some(drop) = ctx.last_drop.get() {
             if let Some(over) = drop.over {
@@ -34,8 +36,12 @@ fn App() -> impl IntoView {
     });
 
     view! {
+        <DndAnnouncer/>
         <h1>"taino-leptos-dnd — sortable list"</h1>
-        <p class="hint">"Drag items to reorder. Touch and mouse both work."</p>
+        <p class="hint">
+            "Drag items to reorder. Mouse, touch, and keyboard all work — focus a row with Tab, \
+             then Space to pick up, arrows to move, Space again to drop, Esc to cancel."
+        </p>
         <div class="list">
             <For
                 each=move || items.get()
@@ -43,7 +49,7 @@ fn App() -> impl IntoView {
                 children=move |item| view! { <Row item /> }
             />
         </div>
-        <footer>"Stage 1 demo · v0.0.1"</footer>
+        <footer>"Stage 2 demo · v0.0.1"</footer>
     }
 }
 
@@ -52,6 +58,7 @@ fn Row(item: Item) -> impl IntoView {
     let id = item.id;
     let d = use_draggable(DraggableId(id));
     let z = use_droppable(DroppableId(id));
+    let label = item.label.clone();
 
     view! {
         <div class="row" node_ref=z.node_ref class:over=move || z.is_over.get()>
@@ -59,10 +66,15 @@ fn Row(item: Item) -> impl IntoView {
                 class="item"
                 class:dragging=move || d.is_dragging.get()
                 node_ref=d.node_ref
+                tabindex="0"
+                role="button"
+                aria-roledescription="draggable item"
+                aria-label=label
                 on:pointerdown=move |e| d.on_pointer_down(&e)
                 on:pointermove=move |e| d.on_pointer_move(&e)
                 on:pointerup=move |e| d.on_pointer_up(&e)
                 on:pointercancel=move |e| d.on_pointer_cancel(&e)
+                on:keydown=move |e| d.on_key_down(&e)
                 style=move || d.style()
             >
                 {item.label}
