@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/taino-dnd-core",
     "crates/taino-dnd-leptos",
+    "examples/sortable-list",
 ]
 # Future members (Stage 3): "crates/taino-dnd-dioxus", "crates/taino-dnd-yew"
 

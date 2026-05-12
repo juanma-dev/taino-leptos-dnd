@@ -15,11 +15,9 @@ readme = "README.md"
 [dependencies]
 taino-dnd-core = { workspace = true }
 leptos = { workspace = true }
-
-# Pulled in only when building for the browser; the cfg below keeps native builds slim.
-[target.'cfg(target_arch = "wasm32")'.dependencies]
+# web-sys / wasm-bindgen are type-only on native (no runtime), so we depend on
+# them unconditionally to keep the public API uniform across targets.
 wasm-bindgen = { workspace = true }
-js-sys = { workspace = true }
 web-sys = { workspace = true, features = [
     "Document",
     "DomRect",

@@ -10,10 +10,12 @@
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-core/0.0.1")]
 
+pub mod collision;
 pub mod error;
 pub mod geometry;
 pub mod state;
 
+pub use collision::closest_center;
 pub use error::Error;
 pub use geometry::{Point, Rect};
 pub use state::{

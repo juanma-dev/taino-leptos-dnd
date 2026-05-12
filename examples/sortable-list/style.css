@@ -1,0 +1,81 @@
+:root {
+  color-scheme: light dark;
+  --bg: #fafafa;
+  --fg: #1a1a1a;
+  --card: #ffffff;
+  --card-border: #d4d4d8;
+  --accent: #2563eb;
+  --over: #dbeafe;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0a0a;
+    --fg: #f5f5f5;
+    --card: #1f1f23;
+    --card-border: #2f2f33;
+    --accent: #60a5fa;
+    --over: #1e3a8a;
+  }
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+main {
+  max-width: 32rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+h1 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem 0;
+}
+
+p.hint {
+  margin: 0 0 1.5rem 0;
+  opacity: 0.7;
+  font-size: 0.875rem;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.row {
+  border-radius: 0.5rem;
+  transition: background 120ms ease, outline-color 120ms ease;
+  outline: 1px solid transparent;
+}
+
+.row.over {
+  background: var(--over);
+  outline: 1px solid var(--accent);
+}
+
+.item {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  cursor: grab;
+}
+
+.item.dragging {
+  cursor: grabbing;
+  opacity: 0.6;
+  border-color: var(--accent);
+}
+
+footer {
+  margin-top: 2rem;
+  opacity: 0.6;
+  font-size: 0.75rem;
+}

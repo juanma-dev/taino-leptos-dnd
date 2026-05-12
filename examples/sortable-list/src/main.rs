@@ -1,0 +1,91 @@
+//! Sortable-list demo for taino-leptos-dnd.
+//!
+//! Each list row is a droppable. Inside each row, a draggable handle covers
+//! the row's content. Dragging item A onto row B inserts A at B's slot.
+
+use leptos::prelude::*;
+use taino_dnd_core::{DraggableId, DroppableId};
+use taino_dnd_leptos::{provide_dnd_context, use_draggable, use_droppable};
+
+#[derive(Clone)]
+struct Item {
+    id: u64,
+    label: String,
+}
+
+#[component]
+fn App() -> impl IntoView {
+    let ctx = provide_dnd_context();
+
+    let items = RwSignal::new(
+        (1..=6_u64).map(|id| Item { id, label: format!("Item #{id}") }).collect::<Vec<_>>(),
+    );
+
+    // React to a successful drop: move `draggable` to the slot occupied by `over`.
+    Effect::new(move |_| {
+        if let Some(drop) = ctx.last_drop.get() {
+            if let Some(over) = drop.over {
+                if drop.draggable.0 != over.0 {
+                    items.update(|v| reorder(v, drop.draggable.0, over.0));
+                }
+            }
+            ctx.clear_last_drop();
+        }
+    });
+
+    view! {
+        <h1>"taino-leptos-dnd — sortable list"</h1>
+        <p class="hint">"Drag items to reorder. Touch and mouse both work."</p>
+        <div class="list">
+            <For
+                each=move || items.get()
+                key=|item| item.id
+                children=move |item| view! { <Row item /> }
+            />
+        </div>
+        <footer>"Stage 1 demo · v0.0.1"</footer>
+    }
+}
+
+#[component]
+fn Row(item: Item) -> impl IntoView {
+    let id = item.id;
+    let d = use_draggable(DraggableId(id));
+    let z = use_droppable(DroppableId(id));
+
+    view! {
+        <div class="row" node_ref=z.node_ref class:over=move || z.is_over.get()>
+            <div
+                class="item"
+                class:dragging=move || d.is_dragging.get()
+                node_ref=d.node_ref
+                on:pointerdown=move |e| d.on_pointer_down(&e)
+                on:pointermove=move |e| d.on_pointer_move(&e)
+                on:pointerup=move |e| d.on_pointer_up(&e)
+                on:pointercancel=move |e| d.on_pointer_cancel(&e)
+                style=move || d.style()
+            >
+                {item.label}
+            </div>
+        </div>
+    }
+}
+
+/// Move the item with id `from` so that it occupies the slot currently held by
+/// `to`. Other items shift accordingly.
+fn reorder(v: &mut Vec<Item>, from: u64, to: u64) {
+    let Some(from_idx) = v.iter().position(|i| i.id == from) else {
+        return;
+    };
+    let item = v.remove(from_idx);
+    let Some(to_idx) = v.iter().position(|i| i.id == to) else {
+        v.insert(from_idx.min(v.len()), item);
+        return;
+    };
+    v.insert(to_idx, item);
+}
+
+fn main() {
+    console_error_panic_hook::set_once();
+    leptos::mount::mount_to_body(App);
+}

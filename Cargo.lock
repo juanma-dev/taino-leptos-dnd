@@ -178,6 +178,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "console_error_panic_hook"
+version = "0.1.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a06aeb73f470f66dcdbf7223caeebb85984942f22f1adb2a088cf9668146bbbc"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "const_format"
 version = "0.2.36"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -317,6 +327,17 @@ checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
 dependencies = [
  "event-listener",
  "pin-project-lite",
+]
+
+[[package]]
+name = "example-sortable-list"
+version = "0.0.1"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "taino-dnd-core",
+ "taino-dnd-leptos",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1527,7 +1548,6 @@ dependencies = [
 name = "taino-dnd-leptos"
 version = "0.0.1"
 dependencies = [
- "js-sys",
  "leptos",
  "taino-dnd-core",
  "wasm-bindgen",

@@ -1,0 +1,17 @@
+[package]
+name = "example-sortable-list"
+description = "Minimal sortable-list demo for taino-leptos-dnd."
+version = "0.0.1"
+edition = "2021"
+publish = false
+license.workspace = true
+
+[dependencies]
+leptos = { workspace = true, features = ["csr"] }
+taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core" }
+console_error_panic_hook = "0.1"
+wasm-bindgen = { workspace = true }
+
+[lints]
+workspace = true
