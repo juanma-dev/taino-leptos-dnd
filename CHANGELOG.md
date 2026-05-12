@@ -53,6 +53,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   returns a `NodeRef` that mirrors the container's bounding rect into
   `DndContext.restrict_container` (re-measured on each auto-scroll
   step). Element rect is captured on drag start and cleared on settle.
+- Stage 2 FLIP animations. New `use_flip(node_ref)` /
+  `use_flip_with(node_ref, FlipConfig)` hooks animate layout changes
+  of tracked elements (typically sortable-list rows) using the
+  classic First/Last/Invert/Play technique with CSS transitions and
+  a forced reflow. Suppressed during active drag, respects
+  `prefers-reduced-motion`. Demonstrated in the sortable-list example.
 
 ### Changed
 - `Modifier::apply` and `apply_chain` now take a `&ModifierContext`.

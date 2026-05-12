@@ -19,10 +19,12 @@ leptos = { workspace = true }
 # them unconditionally to keep the public API uniform across targets.
 wasm-bindgen = { workspace = true }
 web-sys = { workspace = true, features = [
+    "CssStyleDeclaration",
     "Document",
     "DomRect",
     "Element",
     "HtmlElement",
+    "MediaQueryList",
     "PointerEvent",
     "Window",
 ] }

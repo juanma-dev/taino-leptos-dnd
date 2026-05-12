@@ -9,7 +9,8 @@
 use leptos::prelude::*;
 use taino_dnd_core::{DraggableId, DroppableId};
 use taino_dnd_leptos::{
-    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
+    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, use_flip, DndAnnouncer,
+    DragOverlay,
 };
 
 #[derive(Clone)]
@@ -72,6 +73,7 @@ fn Row(item: Item) -> impl IntoView {
     let id = item.id;
     let d = use_draggable(DraggableId(id));
     let z = use_droppable(DroppableId(id));
+    use_flip(z.node_ref);
     let label = item.label.clone();
 
     view! {

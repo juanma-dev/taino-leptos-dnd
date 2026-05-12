@@ -47,6 +47,7 @@ mod context;
 mod dom;
 mod draggable;
 mod droppable;
+mod flip;
 mod overlay;
 
 pub use announcer::DndAnnouncer;
@@ -54,6 +55,7 @@ pub use container::use_drag_container;
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};
+pub use flip::{use_flip, use_flip_with, FlipConfig};
 pub use overlay::DragOverlay;
 // Re-exports for ergonomics: configuring modifiers and auto-scroll shouldn't
 // require an extra dependency on `taino-dnd-core`.
