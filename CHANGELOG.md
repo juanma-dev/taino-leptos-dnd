@@ -46,5 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DndContext.measurement_tick` makes `use_droppable` re-measure
   bounding rects on each scroll step so collision detection stays
   accurate.
+- Stage 2 `Modifier::RestrictToParent`. Clamps drag displacement so the
+  dragged element stays inside a user-chosen container rect. Driven
+  through a new `ModifierContext { container, element }` passed to
+  `Modifier::apply`/`apply_chain`. New `use_drag_container()` hook
+  returns a `NodeRef` that mirrors the container's bounding rect into
+  `DndContext.restrict_container` (re-measured on each auto-scroll
+  step). Element rect is captured on drag start and cleared on settle.
+
+### Changed
+- `Modifier::apply` and `apply_chain` now take a `&ModifierContext`.
+  Existing variants (`RestrictToAxis`, `SnapToGrid`) ignore the
+  context, but call sites need to pass one — typically
+  `&ModifierContext::default()` for pure-vector code.
 
 [Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main

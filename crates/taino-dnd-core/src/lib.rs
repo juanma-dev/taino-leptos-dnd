@@ -21,7 +21,7 @@ pub use autoscroll::{scroll_velocity, AutoScrollConfig};
 pub use collision::{closest_center, spatial_neighbor, Direction};
 pub use error::Error;
 pub use geometry::{Point, Rect};
-pub use modifier::{apply_chain, Axis, Modifier, Vector};
+pub use modifier::{apply_chain, Axis, Modifier, ModifierContext, Vector};
 pub use state::{
     transition, DragEvent, DragState, DraggableId, DroppableId, DEFAULT_DRAG_THRESHOLD,
 };

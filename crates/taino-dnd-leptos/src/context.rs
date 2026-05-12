@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use leptos::prelude::*;
 use taino_dnd_core::{
     apply_chain, closest_center, spatial_neighbor, AutoScrollConfig, Direction, DragState,
-    DraggableId, DroppableId, Modifier, Point, Rect, Vector,
+    DraggableId, DroppableId, Modifier, ModifierContext, Point, Rect, Vector,
 };
 
 /// Shared drag-and-drop state installed at the root of a region that uses
@@ -46,6 +46,14 @@ pub struct DndContext {
     /// auto-scroll loop after a `scrollBy` so collision detection uses
     /// up-to-date rects.
     pub(crate) measurement_tick: RwSignal<u64>,
+    /// Optional bounding rect of the container that
+    /// [`Modifier::RestrictToParent`] should keep drags inside. Set via
+    /// [`DndContext::set_restrict_container`] or via the
+    /// [`use_drag_container`](crate::use_drag_container) helper hook.
+    pub restrict_container: RwSignal<Option<Rect>>,
+    /// Bounding rect of the dragged element at drag-start. Populated by
+    /// `use_draggable` on `pointerdown`/keyboard-pickup; cleared on settle.
+    pub(crate) dragged_element_rect: RwSignal<Option<Rect>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -69,6 +77,8 @@ impl Default for DndContext {
             modifiers: RwSignal::new(Vec::new()),
             auto_scroll: RwSignal::new(AutoScrollConfig::default()),
             measurement_tick: RwSignal::new(0),
+            restrict_container: RwSignal::new(None),
+            dragged_element_rect: RwSignal::new(None),
         }
     }
 }
@@ -156,7 +166,18 @@ impl DndContext {
 
     /// Run the current modifier chain over a raw displacement.
     pub(crate) fn modify(self, raw: Vector) -> Vector {
-        self.modifiers.with(|ms| apply_chain(ms, raw))
+        let ctx = ModifierContext {
+            container: self.restrict_container.get_untracked(),
+            element: self.dragged_element_rect.get_untracked(),
+        };
+        self.modifiers.with(|ms| apply_chain(ms, raw, &ctx))
+    }
+
+    /// Set (or clear) the container rect used by
+    /// [`Modifier::RestrictToParent`]. Typically called from an `Effect`
+    /// watching the container element's bounding rect.
+    pub fn set_restrict_container(self, rect: Option<Rect>) {
+        self.restrict_container.set(rect);
     }
 
     /// Convenience: turn a raw pointer position into the post-modifier
@@ -188,6 +209,13 @@ pub fn provide_dnd_context() -> DndContext {
     let ctx = DndContext::default();
     provide_context(ctx);
     crate::autoscroll::install(ctx);
+    // Whenever a drag ends and the state returns to Idle, clear the dragged
+    // element rect so a stale rect can't influence the next drag.
+    Effect::new(move |_| {
+        if matches!(ctx.state.get(), DragState::Idle) {
+            ctx.dragged_element_rect.set(None);
+        }
+    });
     ctx
 }
 

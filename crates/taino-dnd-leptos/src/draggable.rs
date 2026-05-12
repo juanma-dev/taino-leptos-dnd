@@ -40,6 +40,9 @@ impl UseDraggable {
         {
             self.ctx.state.set(state);
             self.ctx.last_drop.set(None);
+            // Record the element rect so RestrictToParent has something to
+            // clamp against.
+            self.ctx.dragged_element_rect.set(self.element_rect());
             #[cfg(target_arch = "wasm32")]
             if let Some(el) = self.node_ref.get_untracked() {
                 use wasm_bindgen::JsCast;
@@ -205,6 +208,7 @@ impl UseDraggable {
         ) {
             self.ctx.last_drop.set(None);
             self.ctx.state.set(state);
+            self.ctx.dragged_element_rect.set(self.element_rect());
             // Default `over` to the draggable's own droppable id if registered,
             // so the user has a target to navigate from.
             self.ctx.over.set(Some(taino_dnd_core::DroppableId(self.id.0)));
@@ -217,16 +221,27 @@ impl UseDraggable {
 
     #[cfg(target_arch = "wasm32")]
     fn element_center(self) -> Option<Point> {
-        use wasm_bindgen::JsCast;
-        let el = self.node_ref.get_untracked()?;
-        let el = (*el).dyn_ref::<web_sys::Element>()?;
-        let r = el.get_bounding_client_rect();
-        Some(Point::new(r.x() + r.width() / 2.0, r.y() + r.height() / 2.0))
+        let r = self.element_rect()?;
+        Some(Point::new(r.x + r.width / 2.0, r.y + r.height / 2.0))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
     #[allow(clippy::unused_self)] // signature matches the wasm32 sibling
     const fn element_center(self) -> Option<Point> {
+        None
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn element_rect(self) -> Option<taino_dnd_core::Rect> {
+        use wasm_bindgen::JsCast;
+        let el = self.node_ref.get_untracked()?;
+        let el = (*el).dyn_ref::<web_sys::Element>()?;
+        Some(crate::dom::bounding_rect(el))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[allow(clippy::unused_self)] // signature matches the wasm32 sibling
+    const fn element_rect(self) -> Option<taino_dnd_core::Rect> {
         None
     }
 
