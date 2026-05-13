@@ -10,7 +10,8 @@ use std::rc::Rc;
 use dioxus::html::input_data::MouseButton;
 use dioxus::prelude::*;
 use taino_dnd_core::{
-    transition, DragEvent, DragState, DraggableId, Point, DEFAULT_DRAG_THRESHOLD,
+    transition, Direction, DragEvent, DragState, DraggableId, DroppableId, Point, Rect,
+    DEFAULT_DRAG_THRESHOLD,
 };
 
 use crate::context::{use_dnd_context, DndContext, DropResult};
@@ -121,6 +122,73 @@ impl UseDraggable {
         }
     }
 
+    /// `onkeydown` handler for the keyboard sensor.
+    ///
+    /// Key model:
+    ///
+    /// | Key             | When focused (Idle) | When dragging this item |
+    /// | --------------- | ------------------- | ----------------------- |
+    /// | Space / Enter   | Pick up             | Drop                    |
+    /// | Arrow keys      | (pass through)      | Move over neighbor      |
+    /// | Escape          | (pass through)      | Cancel, restore         |
+    ///
+    /// The handler calls `event.prevent_default()` on consumed keys so
+    /// they don't double-fire as scroll/space-page actions.
+    pub fn on_key_down(mut self, ev: Event<KeyboardData>) {
+        let key = ev.key();
+        let current = *self.ctx.state.peek();
+        let is_dragging_me = matches!(current, DragState::Dragging { id, .. } if id == self.id);
+
+        // Pickup path: Space/Enter while not dragging.
+        if !is_dragging_me && matches!(current, DragState::Idle) && is_activation(&key) {
+            self.keyboard_pickup(&ev);
+            return;
+        }
+
+        if !is_dragging_me {
+            return;
+        }
+
+        // Drop.
+        if is_activation(&key) {
+            ev.prevent_default();
+            if let Ok(state) = transition(current, DragEvent::PointerUp, DEFAULT_DRAG_THRESHOLD) {
+                let target = *self.ctx.over.peek();
+                self.ctx.last_drop.set(Some(DropResult { draggable: self.id, over: target }));
+                self.ctx.state.set(state);
+                if let Ok(idle) = transition(state, DragEvent::Settle, DEFAULT_DRAG_THRESHOLD) {
+                    self.ctx.state.set(idle);
+                    self.ctx.over.set(None);
+                }
+                let msg = target.map_or_else(
+                    || format!("Dropped item {} outside any target.", self.id.0),
+                    |t| format!("Dropped item {} on target {}.", self.id.0, t.0),
+                );
+                self.ctx.announce(msg);
+            }
+            return;
+        }
+
+        // Cancel.
+        if matches!(key, Key::Escape) {
+            ev.prevent_default();
+            if let Ok(state) = transition(current, DragEvent::Cancel, DEFAULT_DRAG_THRESHOLD) {
+                self.ctx.state.set(state);
+                self.ctx.over.set(None);
+                self.ctx.announce(format!("Cancelled drag of item {}.", self.id.0));
+            }
+            return;
+        }
+
+        // Arrow keys → step over to neighbor droppable.
+        if let Some(dir) = direction_for_key(&key) {
+            ev.prevent_default();
+            if let Some(new_over) = self.ctx.keyboard_step(dir) {
+                self.ctx.announce(format!("Item {} moved over target {}.", self.id.0, new_over.0));
+            }
+        }
+    }
+
     /// Inline CSS for the element: `transform: translate(...)` while
     /// dragging, plus `touch-action: none` always (so the browser
     /// doesn't pre-empt pointer events for scroll/zoom gestures).
@@ -148,6 +216,55 @@ impl UseDraggable {
         matches!(state,
             DragState::Pressed { id, .. } | DragState::Dragging { id, .. } if id == self.id
         )
+    }
+
+    fn keyboard_pickup(mut self, ev: &Event<KeyboardData>) {
+        ev.prevent_default();
+        // Use the element's center as the synthetic start position. On
+        // non-wasm targets, fall back to (0, 0) — the actual values only
+        // matter for the `transform` signal, which the user can disable
+        // during keyboard drags via CSS.
+        let at = self.element_center().unwrap_or_default();
+        if let Ok(state) = transition(
+            DragState::Idle,
+            DragEvent::KeyboardPickUp { id: self.id, at },
+            DEFAULT_DRAG_THRESHOLD,
+        ) {
+            self.ctx.last_drop.set(None);
+            self.ctx.state.set(state);
+            self.ctx.dragged_element_rect.set(self.element_rect());
+            // Default `over` to the draggable's own droppable id if
+            // registered, so the user has a target to navigate from.
+            self.ctx.over.set(Some(DroppableId(self.id.0)));
+            self.ctx.announce(format!(
+                "Picked up item {}. Use arrow keys to move, space or enter to drop, escape to cancel.",
+                self.id.0
+            ));
+        }
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn element_center(self) -> Option<Point> {
+        let r = self.element_rect()?;
+        Some(Point::new(r.x + r.width / 2.0, r.y + r.height / 2.0))
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[allow(clippy::unused_self)] // signature matches the wasm32 sibling
+    const fn element_center(self) -> Option<Point> {
+        None
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    fn element_rect(self) -> Option<Rect> {
+        let mounted = self.element.peek().clone()?;
+        crate::dom::bounding_rect_of(&mounted)
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    #[allow(clippy::unused_self)] // signature matches the wasm32 sibling
+    const fn element_rect(self) -> Option<Rect> {
+        None
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -226,4 +343,46 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
     });
 
     UseDraggable { id, element, is_dragging, transform, ctx }
+}
+
+fn is_activation(key: &Key) -> bool {
+    match key {
+        Key::Enter => true,
+        Key::Character(s) => s == " ",
+        _ => false,
+    }
+}
+
+const fn direction_for_key(key: &Key) -> Option<Direction> {
+    match key {
+        Key::ArrowUp => Some(Direction::Up),
+        Key::ArrowDown => Some(Direction::Down),
+        Key::ArrowLeft => Some(Direction::Left),
+        Key::ArrowRight => Some(Direction::Right),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{direction_for_key, is_activation};
+    use dioxus::prelude::Key;
+    use taino_dnd_core::Direction;
+
+    #[test]
+    fn activation_keys_recognised() {
+        assert!(is_activation(&Key::Enter));
+        assert!(is_activation(&Key::Character(" ".to_owned())));
+        assert!(!is_activation(&Key::Escape));
+        assert!(!is_activation(&Key::ArrowDown));
+    }
+
+    #[test]
+    fn arrow_keys_map_to_directions() {
+        assert_eq!(direction_for_key(&Key::ArrowUp), Some(Direction::Up));
+        assert_eq!(direction_for_key(&Key::ArrowDown), Some(Direction::Down));
+        assert_eq!(direction_for_key(&Key::ArrowLeft), Some(Direction::Left));
+        assert_eq!(direction_for_key(&Key::ArrowRight), Some(Direction::Right));
+        assert_eq!(direction_for_key(&Key::Character("a".to_owned())), None);
+    }
 }

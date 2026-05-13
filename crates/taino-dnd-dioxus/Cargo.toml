@@ -14,7 +14,7 @@ readme = "README.md"
 
 [dependencies]
 taino-dnd-core = { workspace = true }
-dioxus = { workspace = true, features = ["html", "hooks", "signals"] }
+dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
 # web-sys / wasm-bindgen are type-only on native (no runtime), so we depend
 # unconditionally to keep the public API uniform across targets — mirrors
 # the taino-dnd-leptos crate.
