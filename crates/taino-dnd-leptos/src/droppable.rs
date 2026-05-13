@@ -130,8 +130,14 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
         // Re-measure when a drag starts. Layout can change between drags
         // (e.g. items reordered after a previous drop).
+        // Using a derived signal ensures we catch both pointer (Idle -> Pressed)
+        // and keyboard (Idle -> Dragging) without re-running on Pressed -> Dragging.
+        let is_active = Signal::derive(move || {
+            matches!(ctx.state.get(), DragState::Pressed { .. } | DragState::Dragging { .. })
+        });
+
         Effect::new(move |_| {
-            if matches!(ctx.state.get(), DragState::Pressed { .. }) {
+            if is_active.get() {
                 if let Some(el) = node_ref.get_untracked() {
                     if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
                         let rect = crate::dom::bounding_rect(el);

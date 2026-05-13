@@ -102,6 +102,23 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
     #[cfg(target_arch = "wasm32")]
     {
         let element_for_measure = element;
+
+        // Re-measure when a drag starts (pointer: Idle -> Pressed, keyboard: Idle -> Dragging).
+        // Using a memo prevents re-running on Pressed -> Dragging transition.
+        let is_active = use_memo(move || {
+            matches!(*ctx.state.read(), DragState::Pressed { .. } | DragState::Dragging { .. })
+        });
+
+        use_effect(move || {
+            if *is_active.read() {
+                if let Some(mounted) = element_for_measure.peek().as_ref() {
+                    if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
+                        ctx.upsert_droppable(id, rect);
+                    }
+                }
+            }
+        });
+
         use_effect(move || {
             // Subscribe to the tick.
             let _ = *ctx.measurement_tick.read();
