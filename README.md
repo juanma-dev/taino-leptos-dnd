@@ -84,9 +84,30 @@ fn App() -> impl IntoView {
 }
 ```
 
-See [`examples/sortable-list`](examples/sortable-list) for a single-list reordering demo
-and [`examples/kanban`](examples/kanban) for a multi-column board exercising cross-droppable
-moves with pointer, touch, and keyboard.
+## Examples
+
+| Path | Framework | What it shows |
+| ---- | --------- | ------------- |
+| [`examples/sortable-list`](examples/sortable-list) | Leptos | Single-list reorder with live drop-preview, overlay, ARIA, keyboard. |
+| [`examples/kanban`](examples/kanban) | Leptos | Multi-column board, cross-droppable moves, NVDA-validated a11y. |
+| [`examples/sortable-list-dioxus`](examples/sortable-list-dioxus) | Dioxus | The Stage-3 binding end-to-end — same UX as the Leptos sortable-list, identical API shape. |
+
+### Running them locally
+
+All three serve over `http://localhost:8080` via [Trunk](https://trunkrs.dev):
+
+```bash
+cargo install --locked trunk             # once
+rustup target add wasm32-unknown-unknown # once
+
+# Pick one:
+cd examples/sortable-list         && trunk serve --open
+cd examples/kanban                && trunk serve --open
+cd examples/sortable-list-dioxus  && trunk serve --open
+```
+
+`--open` opens the page in your default browser. Trunk watches the
+files and live-reloads on save.
 
 ## Building
 

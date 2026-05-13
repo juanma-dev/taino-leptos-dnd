@@ -21,8 +21,13 @@
 //!   [`provide_dnd_context`] scrolls the window when the pointer
 //!   approaches a viewport edge during a drag. Configurable via
 //!   [`AutoScrollConfig`].
-//! - ⏳ `DragOverlay`, `use_flip`, auto-scroll on arbitrary overflow
-//!   ancestors — coming in follow-up commits.
+//! - ✅ Live drop-preview reorder via [`use_droppable`]'s `displacement`
+//!   signal + `drop_preview_style()` helper. Neighbors visibly shift to
+//!   show where the dragged item would land.
+//! - ✅ [`DragOverlay`] — fixed-position preview layer that mirrors the
+//!   active drag at the modifier-adjusted pointer position.
+//! - ⏳ `use_flip` (partly superseded by live drop-preview) and auto-scroll
+//!   on arbitrary overflow ancestors — coming in follow-up commits.
 //!
 //! Wherever possible the API mirrors `taino-dnd-leptos` 1:1 so users
 //! who know one binding can read the other.
@@ -37,12 +42,14 @@ mod context;
 mod dom;
 mod draggable;
 mod droppable;
+mod overlay;
 
 pub use announcer::DndAnnouncer;
 pub use container::{use_drag_container, UseDragContainer};
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};
+pub use overlay::DragOverlay;
 
 // Re-exports so user code doesn't need a separate `taino-dnd-core` dep
 // for the value types it'll commonly reach for.
