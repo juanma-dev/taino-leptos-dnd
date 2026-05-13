@@ -1,5 +1,10 @@
 # taino-leptos-dnd
 
+[![CI](https://github.com/juanma-dev/taino-leptos-dnd/actions/workflows/ci.yml/badge.svg)](https://github.com/juanma-dev/taino-leptos-dnd/actions/workflows/ci.yml)
+[![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue.svg)](#license)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](rust-toolchain.toml)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](Cargo.toml)
+
 A **drag & drop** library for [Leptos](https://leptos.dev), inspired by the ergonomics of
 `react-beautiful-dnd` / `dnd-kit`, with a framework-agnostic core that can power bindings
 for Dioxus, Yew, and others.
@@ -90,6 +95,19 @@ cargo test  --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all -- --check
 ```
+
+## Documentation
+
+- [Getting started](docs/guides/getting-started.md) — 5-minute tour from `cargo add` to a working sortable list.
+- [Keyboard & accessibility](docs/guides/keyboard-and-a11y.md) — the a11y model in depth.
+- [Architecture](docs/ARCHITECTURE.md) — why the code is shaped this way.
+- [Roadmap](docs/ROADMAP.md) — three-stage delivery plan with acceptance criteria.
+- [Contributing](docs/CONTRIBUTING.md) — workflow, local setup, pre-commit checks.
+
+## Community
+
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md) — please report vulnerabilities privately.
 
 ## License
 
