@@ -55,9 +55,11 @@ impl UseDroppable {
     /// handle (which carries its own drag transform).
     pub fn drop_preview_style(self) -> String {
         let (dx, dy) = *self.displacement.read();
+        let z_index = if dx.abs() > 0.001 || dy.abs() > 0.001 { "z-index: 1;" } else { "" };
         format!(
             "transform: translate({dx}px, {dy}px); \
-             transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);"
+             transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); \
+             {z_index}"
         )
     }
 }
