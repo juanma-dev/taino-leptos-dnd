@@ -181,22 +181,33 @@ fn CardView(card: Card) -> impl IntoView {
 /// of that column). Source and destination columns can differ.
 fn move_card(cols: &mut [Column], from: u64, to: DroppableId) {
     let Some((src_col, src_idx)) = locate(cols, from) else { return };
-    let card = cols[src_col].cards.remove(src_idx);
 
+    // Resolve the destination **before** removing the source. Locating
+    // the target after the remove returns the wrong slot for same-column
+    // forward moves (the target has already shifted down by one). It
+    // also lets us skip the put-back fallbacks entirely — if we can't
+    // find a destination, we never remove in the first place.
     if let Some(dest_col) = column_idx_from_tail(to) {
-        if dest_col < cols.len() {
-            cols[dest_col].cards.push(card);
-        } else {
-            cols[src_col].cards.insert(src_idx, card);
+        if dest_col >= cols.len() {
+            return; // bogus tail id — leave state untouched
         }
+        let card = cols[src_col].cards.remove(src_idx);
+        cols[dest_col].cards.push(card);
         return;
     }
 
-    if let Some((dest_col, dest_idx)) = locate(cols, to.0) {
-        cols[dest_col].cards.insert(dest_idx, card);
-    } else {
-        cols[src_col].cards.insert(src_idx, card);
+    let Some((dest_col, dest_idx)) = locate(cols, to.0) else { return };
+    if (src_col, src_idx) == (dest_col, dest_idx) {
+        return; // dropped on self — no-op
     }
+
+    let card = cols[src_col].cards.remove(src_idx);
+    // `dest_idx` is the original target position. For same-column
+    // forward moves the target now sits at `dest_idx - 1` after the
+    // remove; inserting at the original `dest_idx` puts `card` just
+    // past it. For backward / cross-column moves the index is
+    // unchanged. Both match the visual drop-preview.
+    cols[dest_col].cards.insert(dest_idx, card);
 }
 
 fn locate(cols: &[Column], id: u64) -> Option<(usize, usize)> {

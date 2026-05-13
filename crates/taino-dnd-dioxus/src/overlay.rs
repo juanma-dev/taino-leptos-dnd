@@ -51,20 +51,34 @@ pub fn DragOverlay(children: Element) -> Element {
     let ctx = use_dnd_context();
 
     let style = use_memo(move || {
-        if let DragState::Dragging { start, current, .. } = *ctx.state.read() {
-            let raw = Vector::new(current.x - start.x, current.y - start.y);
-            let m = ctx.modify(raw);
-            let x = start.x + m.x;
-            let y = start.y + m.y;
-            format!(
-                "position: fixed; top: 0; left: 0; \
-                 transform: translate({x}px, {y}px); \
-                 pointer-events: none; z-index: 9999; \
-                 will-change: transform;"
-            )
-        } else {
-            "display: none;".to_owned()
-        }
+        let DragState::Dragging { start, current, .. } = *ctx.state.read() else {
+            return "display: none;".to_owned();
+        };
+        let raw = Vector::new(current.x - start.x, current.y - start.y);
+        let delta = ctx.modify(raw);
+
+        // Position the overlay at the dragged element's original top-left
+        // plus the modifier-adjusted drag delta. This preserves the cursor's
+        // grab-point relative to the card. If we don't have the rect (rare —
+        // it should always be set during a drag), fall back to placing the
+        // overlay at the pointer.
+        let (x, y, size) = ctx.dragged_element_rect.read().map_or_else(
+            || (start.x + delta.x, start.y + delta.y, String::new()),
+            |rect| {
+                (
+                    rect.x + delta.x,
+                    rect.y + delta.y,
+                    format!("width: {}px; height: {}px;", rect.width, rect.height),
+                )
+            },
+        );
+
+        format!(
+            "position: fixed; top: 0; left: 0; \
+             transform: translate({x}px, {y}px); \
+             pointer-events: none; z-index: 9999; \
+             will-change: transform; {size}"
+        )
     });
 
     rsx! {

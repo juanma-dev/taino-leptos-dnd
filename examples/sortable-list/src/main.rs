@@ -102,17 +102,30 @@ fn Row(item: Item) -> impl IntoView {
     }
 }
 
-/// Move the item with id `from` so that it occupies the slot currently held by
-/// `to`. Other items shift accordingly.
+/// Move the item with id `from` so that it occupies the slot currently
+/// held by `to`. Other items shift accordingly.
+///
+/// Both indices are looked up **before** the removal — looking up `to`
+/// after the remove returns the wrong slot for forward moves because the
+/// target has already shifted down by one.
 fn reorder(v: &mut Vec<Item>, from: u64, to: u64) {
     let Some(from_idx) = v.iter().position(|i| i.id == from) else {
         return;
     };
-    let item = v.remove(from_idx);
     let Some(to_idx) = v.iter().position(|i| i.id == to) else {
-        v.insert(from_idx.min(v.len()), item);
         return;
     };
+    if from_idx == to_idx {
+        return;
+    }
+    let item = v.remove(from_idx);
+    // For forward moves (from_idx < to_idx): after `remove`, the target
+    // sits at `to_idx - 1` in the new vec. Inserting at the *original*
+    // to_idx places `item` just past the target — matching the visual
+    // preview where the target shifted up to make room.
+    // For backward moves (from_idx > to_idx): the target wasn't shifted
+    // by the remove, so inserting at to_idx places `item` just before
+    // the target.
     v.insert(to_idx, item);
 }
 

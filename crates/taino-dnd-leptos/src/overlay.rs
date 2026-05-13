@@ -2,9 +2,10 @@
 //!
 //! Render `<DragOverlay>...</DragOverlay>` once near the root of your app
 //! (after `provide_dnd_context()`). While a drag is active, the overlay's
-//! container becomes a fixed-position layer translated to the
-//! (modifier-adjusted) pointer position. Children render only when there is
-//! an active drag.
+//! container is a fixed-position layer sized to the dragged element's
+//! original bounding rect and translated so the cursor stays at the
+//! original grab-point relative to the card. Children render only while
+//! a drag is in progress.
 //!
 //! Using the overlay decouples the visual preview from the source element's
 //! DOM position, which is what enables the dragged item to "escape" parent
@@ -24,6 +25,12 @@ use taino_dnd_core::{DragState, Vector};
 use crate::context::use_dnd_context;
 
 /// A fixed-position layer that follows the active drag.
+///
+/// The overlay's container is sized to the dragged element's original
+/// bounding rect (captured at `pointerdown` / `keyboard-pickup`) and
+/// translated so the cursor stays at the same point within the card as
+/// where the user grabbed it — the dnd-kit / react-beautiful-dnd
+/// "grab-point preservation" pattern.
 ///
 /// `children` is rendered inside the layer whenever a drag is in progress,
 /// and removed when the state returns to [`DragState::Idle`]. The layer has
@@ -56,24 +63,34 @@ use crate::context::use_dnd_context;
 pub fn DragOverlay(children: ChildrenFn) -> impl IntoView {
     let ctx = use_dnd_context();
 
-    // The fixed-position layer sits at the document origin; we move its
-    // contents to the (modifier-adjusted) pointer position.
-    let translate = Signal::derive(move || match ctx.state.get() {
-        DragState::Dragging { start, current, .. } => {
-            let raw = Vector::new(current.x - start.x, current.y - start.y);
-            let m = ctx.modify(raw);
-            (start.x + m.x, start.y + m.y)
-        }
-        _ => (0.0, 0.0),
-    });
-
     let style = move || {
-        let (x, y) = translate.get();
+        let DragState::Dragging { start, current, .. } = ctx.state.get() else {
+            return String::new();
+        };
+        let raw = Vector::new(current.x - start.x, current.y - start.y);
+        let delta = ctx.modify(raw);
+
+        // Position the overlay at the dragged element's original top-left
+        // plus the modifier-adjusted drag delta. This preserves the cursor's
+        // grab-point relative to the card. If we don't have the rect (rare —
+        // it should always be set during a drag), fall back to placing the
+        // overlay at the pointer.
+        let (x, y, size) = ctx.dragged_element_rect.get().map_or_else(
+            || (start.x + delta.x, start.y + delta.y, String::new()),
+            |rect| {
+                (
+                    rect.x + delta.x,
+                    rect.y + delta.y,
+                    format!("width: {}px; height: {}px;", rect.width, rect.height),
+                )
+            },
+        );
+
         format!(
             "position: fixed; top: 0; left: 0; \
              transform: translate({x}px, {y}px); \
              pointer-events: none; z-index: 9999; \
-             will-change: transform;"
+             will-change: transform; {size}"
         )
     };
 

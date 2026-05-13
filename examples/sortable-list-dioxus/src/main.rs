@@ -117,14 +117,23 @@ fn render_overlay(items: Signal<Vec<(u64, String)>>) -> Element {
 
 /// Move the item with id `from` so that it occupies the slot currently
 /// held by `to`. Other items shift accordingly.
+///
+/// Both indices are looked up **before** the removal — looking up `to`
+/// after the remove returns the wrong slot for forward moves because the
+/// target has already shifted down by one.
 fn reorder(v: &mut Vec<(u64, String)>, from: u64, to: u64) {
     let Some(from_idx) = v.iter().position(|(i, _)| *i == from) else {
         return;
     };
-    let item = v.remove(from_idx);
     let Some(to_idx) = v.iter().position(|(i, _)| *i == to) else {
-        v.insert(from_idx.min(v.len()), item);
         return;
     };
+    if from_idx == to_idx {
+        return;
+    }
+    let item = v.remove(from_idx);
+    // See the reorder() in examples/sortable-list/src/main.rs for the
+    // index-math derivation. tl;dr: original `to_idx` is the right
+    // insert position in both directions.
     v.insert(to_idx, item);
 }
