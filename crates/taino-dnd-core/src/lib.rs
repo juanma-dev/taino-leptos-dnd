@@ -18,6 +18,7 @@
 
 pub mod autoscroll;
 pub mod collision;
+pub mod displacement;
 pub mod error;
 pub mod geometry;
 pub mod modifier;
@@ -25,6 +26,7 @@ pub mod state;
 
 pub use autoscroll::{scroll_velocity, AutoScrollConfig};
 pub use collision::{closest_center, spatial_neighbor, Direction};
+pub use displacement::{detect_axis, live_displacements};
 pub use error::Error;
 pub use geometry::{Point, Rect};
 pub use modifier::{apply_chain, Axis, Modifier, ModifierContext, Vector};

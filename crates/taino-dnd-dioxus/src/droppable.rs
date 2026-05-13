@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use taino_dnd_core::DroppableId;
+use taino_dnd_core::{detect_axis, live_displacements, Axis, DragState, DroppableId, Rect};
 
 use crate::context::{use_dnd_context, DndContext};
 
@@ -20,10 +20,14 @@ pub struct UseDroppable {
     /// `true` while a drag is in progress and the pointer is over this
     /// droppable.
     pub is_over: Memo<bool>,
-    /// Kept around for future helpers (e.g. an `on_mounted` that
-    /// re-measures rect on drag start) — currently the cleanup hook
-    /// captures its own copy via `use_drop`, so this field isn't read
-    /// in the Stage-3 MVP body.
+    /// Live drop-preview displacement: how far this droppable should
+    /// visually translate (in CSS pixels) to make room where the
+    /// dragged item would land. `(0.0, 0.0)` when no drag is active
+    /// or when this slot is not in the affected range.
+    ///
+    /// Wire with [`Self::drop_preview_style`] for the typical pattern,
+    /// or read raw for full control of the transition.
+    pub displacement: Memo<(f64, f64)>,
     #[allow(dead_code)]
     ctx: DndContext,
 }
@@ -38,6 +42,23 @@ impl UseDroppable {
             self.ctx.upsert_droppable(self.id, rect);
         }
         self.element.set(Some(data));
+    }
+
+    /// Inline CSS for the drop-preview transform.
+    ///
+    /// Returns `transform: translate(...); transition: transform 220ms ...;`
+    /// while a drag is active and this slot is in the affected range.
+    /// Returns just the transition rule otherwise, so the element
+    /// animates *back* smoothly when the displacement clears.
+    ///
+    /// Apply to the *droppable wrapper* element, **not** the draggable
+    /// handle (which carries its own drag transform).
+    pub fn drop_preview_style(self) -> String {
+        let (dx, dy) = *self.displacement.read();
+        format!(
+            "transform: translate({dx}px, {dy}px); \
+             transition: transform 220ms cubic-bezier(0.2, 0, 0, 1);"
+        )
     }
 }
 
@@ -74,7 +95,30 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
     let is_over = use_memo(move || *ctx.over.read() == Some(id));
 
+    // Live drop-preview displacement. Re-evaluates whenever state, over,
+    // or droppables changes. For typical list sizes (N < 100) the
+    // per-droppable computation is fine.
+    let displacement = use_memo(move || {
+        let dragged = match *ctx.state.read() {
+            DragState::Dragging { id, .. } => DroppableId(id.0),
+            _ => return (0.0, 0.0),
+        };
+        let over = *ctx.over.read();
+        let map = ctx.droppables.read();
+        let mut items: Vec<(DroppableId, Rect)> = map.iter().map(|(d, r)| (*d, *r)).collect();
+        let axis = detect_axis(&items);
+        items.sort_by(|a, b| {
+            let (sa, sb) = match axis {
+                Axis::Y => (a.1.y, b.1.y),
+                Axis::X => (a.1.x, b.1.x),
+            };
+            sa.partial_cmp(&sb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let displacements = live_displacements(dragged, over, &items, axis);
+        displacements.into_iter().find(|(d, _)| *d == id).map_or((0.0, 0.0), |(_, v)| (v.x, v.y))
+    });
+
     use_drop(move || ctx.remove_droppable(id));
 
-    UseDroppable { id, element, is_over, ctx }
+    UseDroppable { id, element, is_over, displacement, ctx }
 }
