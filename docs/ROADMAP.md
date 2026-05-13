@@ -123,24 +123,24 @@ framework. Set up the pattern so a third (Yew) is trivial.
 
 ### Scope
 
-- Audit `taino-dnd-core` API. Anything that imports `leptos` is a bug.
-- Introduce a `Reactive` trait abstracting signal-like values:
-  ```rust
-  pub trait Reactive<T> {
-      fn get(&self) -> T;
-      fn set(&self, value: T);
-      fn subscribe(&self, f: Box<dyn FnMut(&T)>) -> Subscription;
-  }
-  ```
-- Move framework-specific reactivity into the bindings crates.
-- Build `taino-dnd-dioxus` mirroring the Leptos API surface where possible.
+- ✅ Audit `taino-dnd-core` API. Anything that imports `leptos` is a bug.
+  Verified at every CI run via the `core-is-framework-free` job and locally
+  with `cargo tree -p taino-dnd-core`.
+- Move framework-specific reactivity into the bindings crates. ✅ Already true
+  for `taino-dnd-leptos`; mirrored in `taino-dnd-dioxus` as we port each piece.
+- ✅ Build `taino-dnd-dioxus` mirroring the Leptos API surface where possible.
+  - Initial slice (✅): `DndContext` + `provide_dnd_context` + `use_dnd_context`,
+    using Dioxus `Signal<T>`. Same names, same shape as the Leptos binding so
+    user code reads identically.
+  - Pending: port `use_draggable` (pointer + keyboard), `use_droppable`,
+    `DragOverlay`, modifiers, `use_flip`, auto-scroll.
 - Publish all three crates on crates.io with synchronized minor versions.
 - Add `docs/PORTING.md` describing how to write a new binding.
 
 ### Acceptance
 
 - [ ] `taino-dnd-dioxus` example `sortable-list` works.
-- [ ] `taino-dnd-core` has **zero** `leptos`, `dioxus`, or framework deps.
+- [x] `taino-dnd-core` has **zero** `leptos`, `dioxus`, or framework deps.
 - [ ] Published `0.4.0` of all three crates on crates.io.
 
 ---

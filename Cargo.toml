@@ -2,10 +2,11 @@
 resolver = "2"
 members = [
     "crates/taino-dnd-core",
+    "crates/taino-dnd-dioxus",
     "crates/taino-dnd-leptos",
     "examples/sortable-list",
 ]
-# Future members (Stage 3): "crates/taino-dnd-dioxus", "crates/taino-dnd-yew"
+# Future members (Stage 3): "crates/taino-dnd-yew"
 
 [workspace.package]
 version = "0.0.1"
@@ -24,6 +25,10 @@ taino-dnd-core = { version = "0.0.1", path = "crates/taino-dnd-core" }
 
 # Leptos ecosystem (Stage 1 target — pin to a single minor for the workspace)
 leptos = { version = "0.7", default-features = false }
+
+# Dioxus binding (Stage 3 target). We depend on the umbrella crate without
+# default features so library code doesn't pull a specific renderer in.
+dioxus = { version = "0.6", default-features = false }
 
 # Browser glue (kept out of -core so it stays framework-agnostic)
 wasm-bindgen = "0.2"

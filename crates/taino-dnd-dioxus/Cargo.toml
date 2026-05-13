@@ -1,0 +1,32 @@
+[package]
+name = "taino-dnd-dioxus"
+description = "Accessible, pointer-events drag-and-drop primitives for Dioxus."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+keywords = ["drag-and-drop", "dioxus", "wasm", "accessibility", "ui"]
+categories = ["wasm", "web-programming", "gui"]
+readme = "README.md"
+
+[dependencies]
+taino-dnd-core = { workspace = true }
+dioxus = { workspace = true, features = ["signals", "hooks"] }
+# web-sys / wasm-bindgen are type-only on native (no runtime), so we depend
+# unconditionally to keep the public API uniform across targets — mirrors
+# the taino-dnd-leptos crate.
+wasm-bindgen = { workspace = true }
+web-sys = { workspace = true, features = [
+    "Document",
+    "DomRect",
+    "Element",
+    "HtmlElement",
+    "PointerEvent",
+    "Window",
+] }
+
+[lints]
+workspace = true

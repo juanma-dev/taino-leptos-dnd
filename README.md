@@ -29,7 +29,7 @@ inaccessible, and visually inconsistent). `taino-leptos-dnd` aims to provide:
 | ---------------------- | ---------------------------------------- | ------------- |
 | `taino-dnd-core`       | Geometry, state machine, framework-free  | Pre-alpha     |
 | `taino-dnd-leptos`     | Leptos hooks and components              | Pre-alpha     |
-| `taino-dnd-dioxus`     | Dioxus integration                       | Planned (S3)  |
+| `taino-dnd-dioxus`     | Dioxus integration                       | Pre-alpha (S3 in progress) |
 | `taino-dnd-yew`        | Yew integration                          | Planned (S3)  |
 
 ## Roadmap

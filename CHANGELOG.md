@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Stage 3 begins**: new `taino-dnd-dioxus` crate. First slice ships
+  `DndContext`, `provide_dnd_context`, `use_dnd_context`, and the
+  `DropResult` value type — same names and same shape as the Leptos
+  binding. Built on Dioxus 0.6 with `Signal<T>` for reactive state.
+  Confirms `taino-dnd-core` is genuinely framework-free: it serves both
+  bindings without any code change.
 - Initial workspace scaffolding: `taino-dnd-core`, `taino-dnd-leptos`.
 - Roadmap, architecture, accessibility, and contribution docs.
 - CI workflow with `fmt`, `clippy`, `test`, `audit`, `deny`, and `doc` jobs.
