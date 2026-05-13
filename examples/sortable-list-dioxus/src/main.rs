@@ -29,15 +29,16 @@ fn App() -> Element {
         use_signal(|| (1..=6_u64).map(|id| (id, format!("Item #{id}"))).collect::<Vec<_>>());
 
     // React to a successful drop: move `draggable` to the slot occupied
-    // by `over`, then clear `last_drop` so the effect doesn't re-fire.
+    // by `over`. `take_last_drop` reads the value, subscribes to future
+    // changes, and clears the signal — done safely across two statements
+    // so Dioxus's `read()` guard is dropped before the `set()` runs.
     use_effect(move || {
-        if let Some(drop) = *ctx.last_drop.read() {
+        if let Some(drop) = ctx.take_last_drop() {
             if let Some(target) = drop.over {
                 if drop.draggable.0 != target.0 {
                     items.with_mut(|v| reorder(v, drop.draggable.0, target.0));
                 }
             }
-            ctx.clear_last_drop();
         }
     });
 

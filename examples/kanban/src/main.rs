@@ -62,13 +62,12 @@ fn App() -> impl IntoView {
     ]);
 
     Effect::new(move |_| {
-        if let Some(drop) = ctx.last_drop.get() {
+        if let Some(drop) = ctx.take_last_drop() {
             if let Some(over) = drop.over {
                 if drop.draggable.0 != over.0 {
                     columns.update(|cols| move_card(cols, drop.draggable.0, over));
                 }
             }
-            ctx.clear_last_drop();
         }
     });
 

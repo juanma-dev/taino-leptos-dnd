@@ -123,6 +123,24 @@ impl DndContext {
         self.last_drop.set(None);
     }
 
+    /// Read **and** clear [`DndContext::last_drop`] in one call,
+    /// returning the previous value (if any). Subscribes the calling
+    /// effect to `last_drop` changes.
+    ///
+    /// Prefer this over the manual `if let Some(d) = ctx.last_drop.get()
+    /// { ... ctx.clear_last_drop(); }` pattern — it keeps the example
+    /// code identical with the Dioxus binding (where the manual form
+    /// hits a borrow-conflict footgun) and avoids the double-trigger
+    /// edge case where the effect re-fires once for the set and once
+    /// for the clear.
+    pub fn take_last_drop(self) -> Option<DropResult> {
+        let value = self.last_drop.get();
+        if value.is_some() {
+            self.last_drop.set(None);
+        }
+        value
+    }
+
     /// Move keyboard-driven focus to a neighbor droppable in `direction`.
     ///
     /// Returns the new `over` id (or the old one if no neighbor exists).

@@ -79,6 +79,40 @@ impl DndContext {
         self.last_drop.set(None);
     }
 
+    /// Read **and** clear [`Self::last_drop`] in one call, returning the
+    /// previous value (if any). Subscribes the calling effect / memo to
+    /// `last_drop` changes.
+    ///
+    /// This is the preferred pattern for the "process the drop result,
+    /// then reset" idiom. Doing it manually as
+    /// `if let Some(d) = *ctx.last_drop.read() { ... ctx.clear_last_drop(); }`
+    /// is a Dioxus borrow trap: `read()` returns a guard that lives
+    /// through the entire `if let` body, so the subsequent `set(None)`
+    /// from `clear_last_drop` would panic with a borrow conflict.
+    /// `take_last_drop` does the read-then-write across two statements
+    /// so the read borrow has already dropped before the write fires.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use dioxus::prelude::*;
+    /// use taino_dnd_dioxus::use_dnd_context;
+    ///
+    /// let ctx = use_dnd_context();
+    /// use_effect(move || {
+    ///     if let Some(drop) = ctx.take_last_drop() {
+    ///         // ... update your items vec from `drop.draggable` / `drop.over` ...
+    ///     }
+    /// });
+    /// ```
+    pub fn take_last_drop(mut self) -> Option<DropResult> {
+        let value = *self.last_drop.read();
+        if value.is_some() {
+            self.last_drop.set(None);
+        }
+        value
+    }
+
     /// Register or update the bounding rect for a droppable.
     ///
     /// Only the wasm32 build path calls this; native builds keep the
