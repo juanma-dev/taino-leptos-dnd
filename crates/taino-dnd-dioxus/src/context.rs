@@ -8,8 +8,8 @@ use std::collections::HashMap;
 
 use dioxus::prelude::*;
 use taino_dnd_core::{
-    apply_chain, closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId,
-    Modifier, ModifierContext, Point, Rect, Vector,
+    apply_chain, closest_center, spatial_neighbor, AutoScrollConfig, Direction, DragState,
+    DraggableId, DroppableId, Modifier, ModifierContext, Point, Rect, Vector,
 };
 
 /// Shared drag-and-drop state installed at the root of a region that
@@ -50,6 +50,14 @@ pub struct DndContext {
     /// [`DndContext::set_restrict_container`] or via the
     /// [`use_drag_container`](crate::use_drag_container) helper hook.
     pub restrict_container: Signal<Option<Rect>>,
+    /// Auto-scroll configuration. Drives the viewport-edge auto-scroll
+    /// behavior during a drag. Set `enabled` to `false` to opt out.
+    pub auto_scroll: Signal<AutoScrollConfig>,
+    /// Bump-counter signal that asks all `use_droppable` instances to
+    /// re-measure their bounding rects on the next tick. Incremented by
+    /// the auto-scroll loop after a `scrollBy` so collision detection
+    /// uses up-to-date rects.
+    pub(crate) measurement_tick: Signal<u64>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -156,6 +164,15 @@ impl DndContext {
         let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
         Point::new(start.x + v.x, start.y + v.y)
     }
+
+    /// Ask all live `use_droppable` instances to re-measure their
+    /// bounding rects on the next reactive tick. Called from the
+    /// auto-scroll loop after a `scrollBy`.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn request_remeasure(mut self) {
+        let next = self.measurement_tick.peek().wrapping_add(1);
+        self.measurement_tick.set(next);
+    }
 }
 
 /// Install a [`DndContext`] for descendants. Call once near the root of
@@ -174,6 +191,8 @@ pub fn provide_dnd_context() -> DndContext {
     let dragged_element_rect = use_signal::<Option<Rect>>(|| None);
     let modifiers = use_signal::<Vec<Modifier>>(Vec::new);
     let restrict_container = use_signal::<Option<Rect>>(|| None);
+    let auto_scroll = use_signal(AutoScrollConfig::default);
+    let measurement_tick = use_signal(|| 0_u64);
     let ctx = DndContext {
         state,
         droppables,
@@ -183,8 +202,11 @@ pub fn provide_dnd_context() -> DndContext {
         dragged_element_rect,
         modifiers,
         restrict_container,
+        auto_scroll,
+        measurement_tick,
     };
     use_context_provider(|| ctx);
+    crate::autoscroll::install(ctx);
 
     // When state returns to Idle, clear the cached element rect.
     use_effect(move || {

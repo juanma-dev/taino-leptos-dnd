@@ -17,8 +17,12 @@
 //! - ✅ Modifiers ([`Modifier::RestrictToAxis`], [`Modifier::SnapToGrid`],
 //!   [`Modifier::RestrictToParent`]) + [`use_drag_container`] for the
 //!   parent-restrict pattern.
-//! - ⏳ `DragOverlay`, `use_flip`, auto-scroll — coming in follow-up
-//!   commits as we port each piece from `taino-dnd-leptos`.
+//! - ✅ Viewport auto-scroll: a `requestAnimationFrame` loop installed by
+//!   [`provide_dnd_context`] scrolls the window when the pointer
+//!   approaches a viewport edge during a drag. Configurable via
+//!   [`AutoScrollConfig`].
+//! - ⏳ `DragOverlay`, `use_flip`, auto-scroll on arbitrary overflow
+//!   ancestors — coming in follow-up commits.
 //!
 //! Wherever possible the API mirrors `taino-dnd-leptos` 1:1 so users
 //! who know one binding can read the other.
@@ -26,6 +30,7 @@
 #![doc(html_root_url = "https://docs.rs/taino-dnd-dioxus/0.0.1")]
 
 mod announcer;
+mod autoscroll;
 mod container;
 mod context;
 #[cfg(target_arch = "wasm32")]
@@ -42,5 +47,5 @@ pub use droppable::{use_droppable, UseDroppable};
 // Re-exports so user code doesn't need a separate `taino-dnd-core` dep
 // for the value types it'll commonly reach for.
 pub use taino_dnd_core::{
-    Axis, DragState, DraggableId, DroppableId, Modifier, ModifierContext, Vector,
+    AutoScrollConfig, Axis, DragState, DraggableId, DroppableId, Modifier, ModifierContext, Vector,
 };

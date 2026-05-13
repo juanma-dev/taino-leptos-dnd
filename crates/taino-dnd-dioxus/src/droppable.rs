@@ -95,6 +95,27 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
     let is_over = use_memo(move || *ctx.over.read() == Some(id));
 
+    // Re-measure the bounding rect whenever the auto-scroll loop bumps
+    // `measurement_tick`. After a viewport `scrollBy`, every droppable's
+    // viewport-relative rect has shifted; without this the highlighted
+    // target would lag behind while the page is scrolling.
+    #[cfg(target_arch = "wasm32")]
+    {
+        let element_for_measure = element;
+        use_effect(move || {
+            // Subscribe to the tick.
+            let _ = *ctx.measurement_tick.read();
+            if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
+                return;
+            }
+            if let Some(mounted) = element_for_measure.peek().as_ref() {
+                if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
+                    ctx.upsert_droppable(id, rect);
+                }
+            }
+        });
+    }
+
     // Live drop-preview displacement. Re-evaluates whenever state, over,
     // or droppables changes. For typical list sizes (N < 100) the
     // per-droppable computation is fine.
