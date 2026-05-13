@@ -8,7 +8,8 @@ use std::collections::HashMap;
 
 use dioxus::prelude::*;
 use taino_dnd_core::{
-    closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId, Point, Rect,
+    apply_chain, closest_center, spatial_neighbor, Direction, DragState, DraggableId, DroppableId,
+    Modifier, ModifierContext, Point, Rect, Vector,
 };
 
 /// Shared drag-and-drop state installed at the root of a region that
@@ -34,10 +35,21 @@ pub struct DndContext {
     /// [`DndAnnouncer`](crate::DndAnnouncer).
     pub announcement: Signal<String>,
     /// Bounding rect of the dragged element at drag-start. Populated by
-    /// `use_draggable` on `keyboard-pickup`; used by the keyboard sensor
-    /// to compute a synthetic `at` position. Cleared when state returns
-    /// to Idle (see `provide_dnd_context`).
+    /// `use_draggable` on `pointerdown` and `keyboard-pickup`. Used by
+    /// the keyboard sensor to compute a synthetic `at` position and by
+    /// [`Modifier::RestrictToParent`] for clamping. Cleared when state
+    /// returns to Idle (see `provide_dnd_context`).
     pub(crate) dragged_element_rect: Signal<Option<Rect>>,
+    /// Ordered list of [`Modifier`]s applied to the drag displacement
+    /// before it's used for the visual transform and for collision
+    /// detection. Empty by default. Mutate with
+    /// [`DndContext::push_modifier`] / [`DndContext::set_modifiers`].
+    pub modifiers: Signal<Vec<Modifier>>,
+    /// Optional bounding rect of the container that
+    /// [`Modifier::RestrictToParent`] should keep drags inside. Set via
+    /// [`DndContext::set_restrict_container`] or via the
+    /// [`use_drag_container`](crate::use_drag_container) helper hook.
+    pub restrict_container: Signal<Option<Rect>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -111,6 +123,39 @@ impl DndContext {
     pub fn announce(mut self, message: impl Into<String>) {
         self.announcement.set(message.into());
     }
+
+    /// Append a single [`Modifier`] to the chain.
+    pub fn push_modifier(mut self, modifier: Modifier) {
+        self.modifiers.with_mut(|ms| ms.push(modifier));
+    }
+
+    /// Replace the entire modifier chain.
+    pub fn set_modifiers(mut self, modifiers: Vec<Modifier>) {
+        self.modifiers.set(modifiers);
+    }
+
+    /// Set (or clear) the container rect used by
+    /// [`Modifier::RestrictToParent`]. Typically called from a
+    /// [`use_drag_container`](crate::use_drag_container) effect.
+    pub fn set_restrict_container(mut self, rect: Option<Rect>) {
+        self.restrict_container.set(rect);
+    }
+
+    /// Run the current modifier chain over a raw displacement.
+    pub(crate) fn modify(self, raw: Vector) -> Vector {
+        let mctx = ModifierContext {
+            container: *self.restrict_container.peek(),
+            element: *self.dragged_element_rect.peek(),
+        };
+        self.modifiers.with(|ms| apply_chain(ms, raw, &mctx))
+    }
+
+    /// Convenience: turn a raw pointer position into the post-modifier
+    /// effective position, given the drag's starting point.
+    pub(crate) fn effective_point(self, start: Point, raw: Point) -> Point {
+        let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
+        Point::new(start.x + v.x, start.y + v.y)
+    }
 }
 
 /// Install a [`DndContext`] for descendants. Call once near the root of
@@ -127,7 +172,18 @@ pub fn provide_dnd_context() -> DndContext {
     let last_drop = use_signal::<Option<DropResult>>(|| None);
     let announcement = use_signal(String::new);
     let dragged_element_rect = use_signal::<Option<Rect>>(|| None);
-    let ctx = DndContext { state, droppables, over, last_drop, announcement, dragged_element_rect };
+    let modifiers = use_signal::<Vec<Modifier>>(Vec::new);
+    let restrict_container = use_signal::<Option<Rect>>(|| None);
+    let ctx = DndContext {
+        state,
+        droppables,
+        over,
+        last_drop,
+        announcement,
+        dragged_element_rect,
+        modifiers,
+        restrict_container,
+    };
     use_context_provider(|| ctx);
 
     // When state returns to Idle, clear the cached element rect.

@@ -58,6 +58,10 @@ impl UseDraggable {
         {
             self.ctx.state.set(state);
             self.ctx.last_drop.set(None);
+            // Record the element rect so RestrictToParent has something
+            // to clamp against and the keyboard sensor can compute a
+            // synthetic `at` position if it takes over mid-drag.
+            self.ctx.dragged_element_rect.set(self.element_rect());
             #[cfg(target_arch = "wasm32")]
             self.capture_pointer(&ev);
         }
@@ -65,6 +69,10 @@ impl UseDraggable {
 
     /// `onpointermove` handler.
     pub fn on_pointer_move(mut self, ev: Event<PointerData>) {
+        // Raw position drives the state machine (so the click-vs-drag
+        // threshold isn't broken by an axis lock). The modifier chain
+        // runs afterwards to produce the effective position used for
+        // collision detection.
         let coords = ev.client_coordinates();
         let at = Point::new(coords.x, coords.y);
         let current = *self.ctx.state.peek();
@@ -75,8 +83,9 @@ impl UseDraggable {
             transition(current, DragEvent::PointerMove { at }, DEFAULT_DRAG_THRESHOLD)
         {
             self.ctx.state.set(state);
-            if matches!(state, DragState::Dragging { .. }) {
-                self.ctx.update_over(at);
+            if let DragState::Dragging { start, .. } = state {
+                let effective = self.ctx.effective_point(start, at);
+                self.ctx.update_over(effective);
             }
         }
     }
@@ -337,7 +346,9 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
 
     let transform = use_memo(move || match *ctx.state.read() {
         DragState::Dragging { id: dragged, start, current } if dragged == id => {
-            (current.x - start.x, current.y - start.y)
+            let raw = taino_dnd_core::Vector::new(current.x - start.x, current.y - start.y);
+            let modified = ctx.modify(raw);
+            (modified.x, modified.y)
         }
         _ => (0.0, 0.0),
     });
