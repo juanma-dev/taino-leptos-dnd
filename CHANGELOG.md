@@ -71,6 +71,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   gzipped, overridable via `BUDGET_GZIP_KB`). The new `size-budget` CI
   job runs the same script on every push/PR with prebuilt tools from
   `taiki-e/install-action`.
+- Stage 2 acceptance example: `examples/kanban`. Three-column board
+  exercising cross-droppable moves with pointer, touch, and keyboard.
+  Column-tail droppables (id-range `10_000+`) sit below each card list
+  so items can be appended to the end or dropped into an empty column;
+  card-slot droppables share their card's id for "insert before this
+  card" semantics. Wires `DragOverlay`, `use_flip`, and the existing
+  ARIA announcer.
+- Stage 2 lint-enforcement: `taino-dnd-core` and `taino-dnd-leptos`
+  both opt in (`#![warn(...)]`) to `clippy::unwrap_used`,
+  `clippy::expect_used`, and `clippy::panic`. CI's `-D warnings` makes
+  any new occurrence in non-test code a hard error. The one documented
+  exception (`use_dnd_context`'s missing-provider panic) carries an
+  inline `#[allow(clippy::expect_used)]`.
+
+### Fixed
+- `DndContext::announce` now blanks the live region and re-sets the text
+  on a short timer (50 ms) on wasm targets. Without this, screen readers
+  (NVDA observed; JAWS / `VoiceOver` documented to behave the same)
+  de-duplicate identical consecutive `aria-live` updates, so e.g. a
+  second pickup of the same item read silent. Native builds keep the
+  direct `set()` behavior (no DOM).
+- `DndAnnouncer` switched from `role="status" aria-live="polite"` to
+  `role="alert" aria-live="assertive"`. With `polite`, the focus-change
+  announcement that NVDA emits when the user `Tab`s onto a card and then
+  presses `Space` was queued in front of the pickup message and observed
+  to drop it. `assertive` interrupts the focus announcement so pickup /
+  move / drop / cancel all reach the user — this is the pattern
+  `react-beautiful-dnd` settled on after testing.
+
+### Verified
+- Stage 2 screen-reader smoke-test passed: NVDA on Microsoft Edge on
+  Windows 11, kanban example, 2026-05-12. All five announcement classes
+  (focus, pickup, move, drop, cancel) reach the user. Raw numeric ids
+  in the move/drop messages are tracked as a follow-up in
+  `docs/ROADMAP.md` (semantic-labels callback).
 
 ### Changed
 - `Modifier::apply` and `apply_chain` now take a `&ModifierContext`.

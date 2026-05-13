@@ -137,11 +137,31 @@ impl DndContext {
         next.or(Some(from))
     }
 
-    /// Push a screen-reader announcement. Equivalent to writing into
-    /// [`Self::announcement`] but kept as a method for symmetry and so we can
-    /// add throttling later if needed.
+    /// Push a screen-reader announcement.
+    ///
+    /// Screen readers (NVDA, JAWS, `VoiceOver`) de-duplicate identical
+    /// consecutive updates to `aria-live` regions, so naively re-setting the
+    /// same string silently drops, e.g., the second "Picked up item 1" when
+    /// the user cancels and immediately picks up the same item again. To
+    /// guarantee every call re-reads, the wasm implementation blanks the
+    /// region and then sets the real text after a short delay so the live
+    /// region mutation observer sees two distinct states. Native builds
+    /// just set the signal directly (no DOM, nothing to dedupe).
     pub fn announce(self, message: impl Into<String>) {
-        self.announcement.set(message.into());
+        let msg = message.into();
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            self.announcement.set(msg);
+        }
+        #[cfg(target_arch = "wasm32")]
+        {
+            self.announcement.set(String::new());
+            let signal = self.announcement;
+            leptos::prelude::set_timeout(
+                move || signal.set(msg),
+                std::time::Duration::from_millis(50),
+            );
+        }
     }
 
     /// Append a single [`Modifier`] to the chain.
@@ -227,6 +247,9 @@ pub fn provide_dnd_context() -> DndContext {
 /// calling a drag-and-drop hook outside a drag-and-drop scope is a programmer
 /// error, not a recoverable runtime condition.
 pub fn use_dnd_context() -> DndContext {
+    // Intentional panic: see the doc-comment above. The `expect_used` lint is
+    // crate-warn by default; this is the one documented exception.
+    #[allow(clippy::expect_used)]
     use_context::<DndContext>()
         .expect("taino-dnd: provide_dnd_context() must be called in an ancestor")
 }

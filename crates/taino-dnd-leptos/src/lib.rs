@@ -38,6 +38,12 @@
 //! keyboard sensors, animations, auto-scroll, and ARIA announcements.
 
 #![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.0.1")]
+// Stage 2 acceptance: no `unwrap()` / `expect()` / `panic!` in public-facing
+// paths. See `crates/taino-dnd-core/src/lib.rs` for the rationale; the one
+// remaining `expect()` (in `use_dnd_context`) is `#[allow]`-ed inline because
+// the panic is the documented behavior for "called outside a DndContext".
+#![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod announcer;
 mod autoscroll;

@@ -114,6 +114,25 @@ A non-trivial Kanban example must work, including accessibility.
 - [ ] No `unwrap()` / `panic!` in public-facing paths (lint-enforced).
 - [ ] Bundle-size CI check passes.
 
+### Tracked follow-ups (Stage 2 polish, not gating)
+
+- **Live drop-preview reorder.** While a drag is in progress, neighbors of the
+  hovered slot should shift to *show* the post-drop layout before the user
+  releases (the dnd-kit "transition-during-drag" feel). FLIP currently runs
+  only on the post-drop settle, so the preview is missing. Likely
+  implementation: drive a virtual "displaced index" off the `over` signal,
+  apply it as an inline `transform` to neighbors. Doesn't block the Stage 2
+  acceptance gates above.
+- **Semantic labels in screen-reader announcements.** The default
+  announcements are wired with raw numeric ids ("Item 1 moved over target
+  10000"). End users of an assistive technology need human-readable
+  labels ("Item Write kanban example moved over End of To do column").
+  Options being weighed: (a) carry an optional `label: Cow<'static, str>`
+  next to each `DraggableId` / `DroppableId` registration, (b) accept a
+  `DndContext::announcement_formatter: impl Fn(AnnounceEvent) -> String`
+  callback so the app fully owns the strings, (c) both. (b) is cheaper
+  and composes better with i18n — likely the path.
+
 ---
 
 ## Stage 3 — Multi-framework (`v0.3 → v0.4+`)

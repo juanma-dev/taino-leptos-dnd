@@ -404,6 +404,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-kanban"
+version = "0.0.1"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "taino-dnd-core",
+ "taino-dnd-leptos",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "example-sortable-list"
 version = "0.0.1"
 dependencies = [

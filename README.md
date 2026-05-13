@@ -84,7 +84,9 @@ fn App() -> impl IntoView {
 }
 ```
 
-See [`examples/sortable-list`](examples/sortable-list) for a full reordering demo.
+See [`examples/sortable-list`](examples/sortable-list) for a single-list reordering demo
+and [`examples/kanban`](examples/kanban) for a multi-column board exercising cross-droppable
+moves with pointer, touch, and keyboard.
 
 ## Building
 
