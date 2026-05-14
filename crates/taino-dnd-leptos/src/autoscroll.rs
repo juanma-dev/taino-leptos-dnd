@@ -43,10 +43,16 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
-        // Whenever we enter the Dragging state, ensure a RAF tick is scheduled.
-        // The tick self-terminates when state leaves Dragging.
+        // `Memo` (not `Signal::derive`) is load-bearing: every
+        // `pointermove` updates `state.current`, so a non-deduped
+        // derived signal would re-fire this effect on every move and
+        // spawn a fresh RAF loop each time. With `Memo`, the effect
+        // only fires on the actual Idle/Pressed → Dragging transition,
+        // so exactly one loop runs per drag (and self-terminates when
+        // the state leaves Dragging).
+        let is_dragging = Memo::new(move |_| matches!(ctx.state.get(), DragState::Dragging { .. }));
         Effect::new(move |_| {
-            if matches!(ctx.state.get(), DragState::Dragging { .. }) {
+            if is_dragging.get() {
                 start_loop(ctx);
             }
         });
