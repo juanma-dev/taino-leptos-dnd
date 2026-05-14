@@ -25,7 +25,7 @@ pub mod modifier;
 pub mod state;
 
 pub use autoscroll::{scroll_velocity, AutoScrollConfig};
-pub use collision::{closest_center, spatial_neighbor, Direction};
+pub use collision::{closest_center, pointer_within, spatial_neighbor, Direction};
 pub use displacement::{detect_axis, live_displacements};
 pub use error::Error;
 pub use geometry::{Point, Rect};

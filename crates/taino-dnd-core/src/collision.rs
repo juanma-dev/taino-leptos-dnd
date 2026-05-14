@@ -1,7 +1,15 @@
 //! Collision-detection strategies.
 //!
+//! - [`pointer_within`] picks the droppable whose rect contains the pointer.
+//!   This is the default for pointer-driven drags: it scopes activation to
+//!   the area the user is actually pointing at, which matters for layouts
+//!   with multiple zones where neighboring zones must not "steal" the drop
+//!   target.
 //! - [`closest_center`] picks the droppable whose center is nearest to the
-//!   pointer. Default for pointer-driven drags.
+//!   pointer, regardless of containment. Available as a building block for
+//!   custom strategies; not used by the default pointer path because in a
+//!   multi-zone layout it activates the wrong target as soon as the pointer
+//!   crosses the midpoint between two zones.
 //! - [`spatial_neighbor`] picks the next droppable in a given direction
 //!   relative to a starting droppable. Used by the keyboard sensor to handle
 //!   arrow keys.
@@ -22,6 +30,49 @@ pub enum Direction {
     Left,
     /// Toward larger `x`.
     Right,
+}
+
+/// Pick the [`DroppableId`] whose rectangle contains `pointer`.
+///
+/// Returns `None` when the pointer is not inside any droppable. When two
+/// rects overlap and both contain the pointer (e.g. nested zones), the tie
+/// is resolved by picking the droppable whose center is closest to the
+/// pointer.
+///
+/// This is the default `update_over` policy in the framework bindings.
+/// Compared to [`closest_center`], it scopes activation to the area the
+/// user is actually pointing at, which is what multi-zone layouts need:
+/// without containment, the pointer hovering in the *gap* between zone A
+/// and zone B would prematurely activate zone B's nearest card, opening a
+/// drop slot before the user has even entered zone B.
+///
+/// # Examples
+///
+/// ```
+/// use taino_dnd_core::{collision::pointer_within, DroppableId, Point, Rect};
+///
+/// let zones = [
+///     (DroppableId(1), Rect::new(0.0, 0.0, 100.0, 100.0)),
+///     (DroppableId(2), Rect::new(200.0, 0.0, 100.0, 100.0)),
+/// ];
+///
+/// // Inside zone 1 → zone 1.
+/// assert_eq!(pointer_within(Point::new(50.0, 50.0), zones), Some(DroppableId(1)));
+/// // In the gap between zone 1 and zone 2 → no activation.
+/// assert_eq!(pointer_within(Point::new(150.0, 50.0), zones), None);
+/// // Inside zone 2 → zone 2.
+/// assert_eq!(pointer_within(Point::new(250.0, 50.0), zones), Some(DroppableId(2)));
+/// ```
+pub fn pointer_within<I>(pointer: Point, droppables: I) -> Option<DroppableId>
+where
+    I: IntoIterator<Item = (DroppableId, Rect)>,
+{
+    droppables
+        .into_iter()
+        .filter(|(_, rect)| rect.contains(pointer))
+        .map(|(id, rect)| (id, rect.center().distance_squared(pointer)))
+        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        .map(|(id, _)| id)
 }
 
 /// Pick the [`DroppableId`] whose rectangle's center is closest to `pointer`.
@@ -134,6 +185,50 @@ mod tests {
 
     fn zone(id: u64, x: f64, y: f64, w: f64, h: f64) -> (DroppableId, Rect) {
         (DroppableId(id), Rect::new(x, y, w, h))
+    }
+
+    #[test]
+    fn pointer_within_empty_returns_none() {
+        assert!(pointer_within(Point::new(0.0, 0.0), std::iter::empty()).is_none());
+    }
+
+    #[test]
+    fn pointer_within_inside_rect_returns_it() {
+        let zones = [zone(1, 0.0, 0.0, 100.0, 100.0), zone(2, 200.0, 0.0, 100.0, 100.0)];
+        assert_eq!(pointer_within(Point::new(50.0, 50.0), zones), Some(DroppableId(1)));
+        assert_eq!(pointer_within(Point::new(250.0, 50.0), zones), Some(DroppableId(2)));
+    }
+
+    #[test]
+    fn pointer_within_outside_all_returns_none() {
+        // Cursor sits in the gap between the two zones — no activation.
+        let zones = [zone(1, 0.0, 0.0, 100.0, 100.0), zone(2, 200.0, 0.0, 100.0, 100.0)];
+        assert!(pointer_within(Point::new(150.0, 50.0), zones).is_none());
+        // Way off in space.
+        assert!(pointer_within(Point::new(1000.0, 1000.0), zones).is_none());
+    }
+
+    #[test]
+    fn pointer_within_overlap_picks_closest_center() {
+        // Two overlapping zones. Pointer is inside both. Tie breaks to the
+        // zone whose center is closer.
+        let zones = [zone(1, 0.0, 0.0, 100.0, 100.0), zone(2, 50.0, 50.0, 100.0, 100.0)];
+        // Point (60, 60): zone 1 center (50, 50) → d²=200; zone 2 center
+        // (100, 100) → d²=3200. Zone 1 wins.
+        assert_eq!(pointer_within(Point::new(60.0, 60.0), zones), Some(DroppableId(1)));
+    }
+
+    #[test]
+    fn pointer_within_multi_zone_does_not_leak_between_zones() {
+        // Two stacked vertical zones separated by a gap.
+        let zones = [
+            zone(1, 0.0, 0.0, 200.0, 100.0),   // Zone A
+            zone(2, 0.0, 150.0, 200.0, 100.0), // Zone B (50 px gap below A)
+        ];
+        // Cursor in the gap: neither zone activates. This is the property
+        // that prevents premature drop-preview shifts in multi-zone layouts.
+        assert!(pointer_within(Point::new(100.0, 120.0), zones).is_none());
+        assert!(pointer_within(Point::new(100.0, 130.0), zones).is_none());
     }
 
     #[test]

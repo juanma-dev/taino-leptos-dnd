@@ -7,7 +7,7 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use taino_dnd_core::{
-    apply_chain, closest_center, spatial_neighbor, AutoScrollConfig, Direction, DragState,
+    apply_chain, pointer_within, spatial_neighbor, AutoScrollConfig, Direction, DragState,
     DraggableId, DroppableId, Modifier, ModifierContext, Point, Rect, Vector,
 };
 
@@ -109,10 +109,16 @@ impl DndContext {
     }
 
     /// Recompute which droppable the pointer is over and update `self.over`.
+    ///
+    /// Uses the containment-first policy from
+    /// [`taino_dnd_core::pointer_within`]: the pointer must lie inside a
+    /// droppable's rect to activate it. When the pointer is outside every
+    /// droppable (e.g. in the gap between two stacked zones) `over` is
+    /// `None` so cross-zone drop-preview shifts don't fire prematurely.
     pub(crate) fn update_over(self, pointer: Point) {
         let id = self
             .droppables
-            .with(|map| closest_center(pointer, map.iter().map(|(id, rect)| (*id, *rect))));
+            .with(|map| pointer_within(pointer, map.iter().map(|(id, rect)| (*id, *rect))));
         if self.over.get_untracked() != id {
             self.over.set(id);
         }
