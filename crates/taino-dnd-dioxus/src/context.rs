@@ -54,11 +54,6 @@ pub struct DndContext {
     /// Auto-scroll configuration. Drives the viewport-edge auto-scroll
     /// behavior during a drag. Set `enabled` to `false` to opt out.
     pub auto_scroll: Signal<AutoScrollConfig>,
-    /// Bump-counter signal that asks all `use_droppable` instances to
-    /// re-measure their bounding rects on the next tick. Incremented by
-    /// the auto-scroll loop after a `scrollBy` so collision detection
-    /// uses up-to-date rects.
-    pub(crate) measurement_tick: Signal<u64>,
     /// Non-reactive registry of droppable element handles. Populated by
     /// `use_droppable` on mount and cleared on drop. The centralized
     /// re-measure effect in `provide_dnd_context` iterates this map
@@ -335,15 +330,6 @@ impl DndContext {
         let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
         Point::new(start.x + v.x, start.y + v.y)
     }
-
-    /// Ask all live `use_droppable` instances to re-measure their
-    /// bounding rects on the next reactive tick. Called from the
-    /// auto-scroll loop after a `scrollBy`.
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn request_remeasure(mut self) {
-        let next = self.measurement_tick.peek().wrapping_add(1);
-        self.measurement_tick.set(next);
-    }
 }
 
 /// Install a [`DndContext`] for descendants. Call once near the root of
@@ -363,7 +349,6 @@ pub fn provide_dnd_context() -> DndContext {
     let modifiers = use_signal::<Vec<Modifier>>(Vec::new);
     let restrict_container = use_signal::<Option<Rect>>(|| None);
     let auto_scroll = use_signal(AutoScrollConfig::default);
-    let measurement_tick = use_signal(|| 0_u64);
     let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
     let raf_scrolling = use_signal(|| false);
     // Deduped dragged-droppable memo: only changes on drag start/end,
@@ -383,7 +368,6 @@ pub fn provide_dnd_context() -> DndContext {
         modifiers,
         restrict_container,
         auto_scroll,
-        measurement_tick,
         elements,
         raf_scrolling,
         dragged_droppable,
