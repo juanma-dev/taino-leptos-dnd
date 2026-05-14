@@ -74,7 +74,7 @@ pub struct DndContext {
     /// Changes only on drag start/end, NOT on every `pointermove`.
     /// Displacement memos subscribe to this instead of raw `state`,
     /// avoiding 18× re-evaluations per pointermove event.
-    pub(crate) dragged_droppable: Memo<Option<DroppableId>>,
+    pub dragged_droppable: Memo<Option<DroppableId>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -252,6 +252,14 @@ impl DndContext {
     /// only that zone's cards.
     pub fn with_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId, Rect>) -> R) -> R {
         self.droppables.with(f)
+    }
+
+    /// Same as `with_droppables` but uses `peek()` under the hood. Does not subscribe the
+    /// calling effect or memo to registry updates. Useful for derivations that only need
+    /// to read rects when some *other* signal (like `over` or `dragged_droppable`) changes.
+    pub fn peek_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId, Rect>) -> R) -> R {
+        let droppables = self.droppables.peek();
+        f(&droppables)
     }
 
     /// Move keyboard-driven focus to a neighbor droppable in `direction`.

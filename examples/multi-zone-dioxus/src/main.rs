@@ -192,15 +192,14 @@ fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
     let name = use_memo(move || zones.read().get(idx).map_or("", |z| z.name).to_owned());
     let is_empty = use_memo(move || cards.read().is_empty());
 
-    // Per-zone live drop-preview displacements. See the Leptos demo's
-    // doc-comment for the full rationale; in short: only this zone's
-    // cards participate, with this zone's axis, so cross-zone drags
-    // produce zero shift here and the within-zone case matches the
-    // `sortable-list` demo.
+    // Per-zone live drop-preview displacements. Subscribes to
+    // `dragged_droppable` (deduped, drag start/end only) and `over`
+    // (hover changes). Peeks droppable rects because displacements are
+    // scroll-invariant — all rects shift by the same delta during
+    // scroll, preserving relative order and step sizes.
     let displacements: Memo<HashMap<u64, (f64, f64)>> = use_memo(move || {
-        let dragged = match *ctx.state.read() {
-            DragState::Dragging { id, .. } => DroppableId(id.0),
-            _ => return HashMap::new(),
+        let Some(dragged) = *ctx.dragged_droppable.read() else {
+            return HashMap::new();
         };
         let over = *ctx.over.read();
         let zone_axis = match *layout.read() {
@@ -208,7 +207,7 @@ fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
             ZoneLayout::Horizontal => Axis::X,
         };
         let card_ids: Vec<u64> = cards.read().iter().map(|c| c.id).collect();
-        let mut items: Vec<(DroppableId, Rect)> = ctx.with_droppables(|map| {
+        let mut items: Vec<(DroppableId, Rect)> = ctx.peek_droppables(|map| {
             card_ids
                 .iter()
                 .filter_map(|id| map.get(&DroppableId(*id)).map(|r| (DroppableId(*id), *r)))
