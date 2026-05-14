@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "example-kanban"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -864,7 +864,7 @@ dependencies = [
 
 [[package]]
 name = "example-multi-zone"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -875,7 +875,7 @@ dependencies = [
 
 [[package]]
 name = "example-multi-zone-dioxus"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "dioxus",
@@ -885,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "example-sortable-list"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -896,7 +896,7 @@ dependencies = [
 
 [[package]]
 name = "example-sortable-list-dioxus"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "console_error_panic_hook",
  "dioxus",
@@ -2395,14 +2395,14 @@ dependencies = [
 
 [[package]]
 name = "taino-dnd-core"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "taino-dnd-dioxus"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "dioxus",
  "taino-dnd-core",
@@ -2412,7 +2412,7 @@ dependencies = [
 
 [[package]]
 name = "taino-dnd-leptos"
-version = "0.0.1"
+version = "0.4.0"
 dependencies = [
  "leptos",
  "taino-dnd-core",
