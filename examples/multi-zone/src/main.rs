@@ -14,15 +14,19 @@
 //! "tail" droppable (id `TAIL_BASE + zone_idx`) used as a "drop at
 //! end" target so empty zones remain reachable.
 //!
-//! Live drop-preview displacement is intentionally **not** applied to
-//! card slots in this demo: the global single-axis detection in
-//! [`taino_dnd_core::live_displacements`] can't disambiguate the mixed
-//! vertical / horizontal layout. The [`DragOverlay`] following the
-//! cursor plus `class:over` hover state is enough feedback to make the
-//! drop intent visible.
+//! Live drop-preview displacement is computed **per zone**: each
+//! `ZoneView` runs [`taino_dnd_core::live_displacements`] over its own
+//! cards' rects with that zone's axis (Y for vertical, X for
+//! horizontal). When both the dragged card and the hovered target
+//! belong to the same zone, neighbors part exactly like the
+//! `sortable-list` demo; when they belong to different zones, the
+//! within-zone result is all-zero and the [`DragOverlay`] alone
+//! communicates the intent.
+
+use std::collections::HashMap;
 
 use leptos::prelude::*;
-use taino_dnd_core::{DraggableId, DroppableId};
+use taino_dnd_core::{live_displacements, Axis, DragState, DraggableId, DroppableId, Rect};
 use taino_dnd_leptos::{
     provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
 };
@@ -145,6 +149,7 @@ fn App() -> impl IntoView {
 
 #[component]
 fn ZoneView(idx: usize, zones: RwSignal<Vec<Zone>>) -> impl IntoView {
+    let ctx = use_dnd_context();
     let tail = use_droppable(zone_tail_id(idx));
     let name = Signal::derive(move || zones.with(|zs| zs.get(idx).map_or("", |z| z.name)));
     let layout = Signal::derive(move || {
@@ -154,6 +159,41 @@ fn ZoneView(idx: usize, zones: RwSignal<Vec<Zone>>) -> impl IntoView {
         zones.with(|zs| zs.get(idx).map(|z| z.cards.clone()).unwrap_or_default())
     });
     let is_empty = Signal::derive(move || cards.with(Vec::is_empty));
+
+    // Per-zone live drop-preview displacements. Only the cards of this
+    // zone participate in the computation, with the zone's own axis
+    // (Y for vertical lists, X for horizontal bars). When the dragged
+    // card or the hovered target belongs to a different zone, the
+    // returned map's entries are zero — that zone simply doesn't react.
+    let displacements: Signal<HashMap<u64, (f64, f64)>> = Signal::derive(move || {
+        let dragged = match ctx.state.get() {
+            DragState::Dragging { id, .. } => DroppableId(id.0),
+            _ => return HashMap::new(),
+        };
+        let over = ctx.over.get();
+        let zone_axis = match layout.get() {
+            ZoneLayout::Vertical => Axis::Y,
+            ZoneLayout::Horizontal => Axis::X,
+        };
+        let card_ids: Vec<u64> = cards.with(|cs| cs.iter().map(|c| c.id).collect());
+        let mut items: Vec<(DroppableId, Rect)> = ctx.with_droppables(|map| {
+            card_ids
+                .iter()
+                .filter_map(|id| map.get(&DroppableId(*id)).map(|r| (DroppableId(*id), *r)))
+                .collect()
+        });
+        items.sort_by(|a, b| {
+            let (sa, sb) = match zone_axis {
+                Axis::Y => (a.1.y, b.1.y),
+                Axis::X => (a.1.x, b.1.x),
+            };
+            sa.partial_cmp(&sb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        live_displacements(dragged, over, &items, zone_axis)
+            .into_iter()
+            .map(|(d, v)| (d.0, (v.x, v.y)))
+            .collect()
+    });
 
     let section_class = move || match layout.get() {
         ZoneLayout::Vertical => "zone vzone",
@@ -176,7 +216,13 @@ fn ZoneView(idx: usize, zones: RwSignal<Vec<Zone>>) -> impl IntoView {
                 <For
                     each=move || cards.get()
                     key=|c| c.id
-                    children=move |c| view! { <CardView card=c /> }
+                    children=move |c: Card| {
+                        let card_id = c.id;
+                        let displacement = Signal::derive(move || {
+                            displacements.with(|m| m.get(&card_id).copied().unwrap_or((0.0, 0.0)))
+                        });
+                        view! { <CardView card=c displacement=displacement /> }
+                    }
                 />
                 <div
                     class="zone-tail"
@@ -193,14 +239,29 @@ fn ZoneView(idx: usize, zones: RwSignal<Vec<Zone>>) -> impl IntoView {
 }
 
 #[component]
-fn CardView(card: Card) -> impl IntoView {
+fn CardView(card: Card, displacement: Signal<(f64, f64)>) -> impl IntoView {
     let id = card.id;
     let d = use_draggable(DraggableId(id));
     let z = use_droppable(DroppableId(id));
     let label = card.label.clone();
 
+    let preview_style = move || {
+        let (dx, dy) = displacement.get();
+        let z_idx = if dx.abs() > 0.001 || dy.abs() > 0.001 { "z-index: 1;" } else { "" };
+        format!(
+            "transform: translate({dx}px, {dy}px); \
+             transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); \
+             {z_idx}"
+        )
+    };
+
     view! {
-        <div class="card-slot" node_ref=z.node_ref class:over=move || z.is_over.get()>
+        <div
+            class="card-slot"
+            node_ref=z.node_ref
+            class:over=move || z.is_over.get()
+            style=preview_style
+        >
             <div
                 class="card"
                 class:dragging=move || d.is_dragging.get()

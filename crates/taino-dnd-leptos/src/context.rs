@@ -118,6 +118,20 @@ impl DndContext {
         }
     }
 
+    /// Borrow the registry of mounted droppables and their last-known
+    /// bounding rects. Subscribes the calling reactive scope to
+    /// registry updates so derived signals re-run when droppables are
+    /// added, removed, or remeasured.
+    ///
+    /// Use when building layouts where the library's built-in
+    /// per-droppable `displacement` signal is too coarse — for example,
+    /// multi-zone demos that need to run
+    /// [`taino_dnd_core::live_displacements`] separately per zone with
+    /// only that zone's cards.
+    pub fn with_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId, Rect>) -> R) -> R {
+        self.droppables.with(f)
+    }
+
     /// Clear [`DndContext::last_drop`] after the caller has consumed it.
     pub fn clear_last_drop(self) {
         self.last_drop.set(None);

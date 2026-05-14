@@ -144,6 +144,20 @@ impl DndContext {
         }
     }
 
+    /// Borrow the registry of mounted droppables and their last-known
+    /// bounding rects. Subscribes the calling reactive scope (memo /
+    /// effect) to registry updates so derived values re-run when
+    /// droppables are added, removed, or remeasured.
+    ///
+    /// Use when building layouts where the library's built-in
+    /// per-droppable `displacement` memo is too coarse — for example,
+    /// multi-zone demos that need to run
+    /// [`taino_dnd_core::live_displacements`] separately per zone with
+    /// only that zone's cards.
+    pub fn with_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId, Rect>) -> R) -> R {
+        self.droppables.with(f)
+    }
+
     /// Move keyboard-driven focus to a neighbor droppable in `direction`.
     ///
     /// Returns the new `over` id (or the old one if no neighbor exists

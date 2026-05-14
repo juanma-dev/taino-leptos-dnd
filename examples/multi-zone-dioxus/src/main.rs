@@ -12,10 +12,22 @@
 //! All four zones share one [`DndContext`](taino_dnd_dioxus::provide_dnd_context).
 //! Cards carry unique integer ids; each zone has a "tail" droppable so
 //! empty zones (and "drop at end" intent) remain reachable.
+//!
+//! Live drop-preview displacement is computed **per zone**: each
+//! `ZoneView` runs [`taino_dnd_core::live_displacements`] over its own
+//! cards' rects with that zone's axis (Y for vertical, X for
+//! horizontal). When both the dragged card and the hovered target
+//! belong to the same zone, neighbors part exactly like the
+//! `sortable-list-dioxus` demo; when they belong to different zones,
+//! the within-zone result is all-zero and the [`DragOverlay`] alone
+//! communicates the intent.
 
 #![allow(non_snake_case)]
 
+use std::collections::HashMap;
+
 use dioxus::prelude::*;
+use taino_dnd_core::{live_displacements, Axis, Rect};
 use taino_dnd_dioxus::{
     provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
     DragState, DraggableId, DroppableId,
@@ -132,12 +144,48 @@ fn App() -> Element {
 
 #[component]
 fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
+    let ctx = use_dnd_context();
     let tail = use_droppable(zone_tail_id(idx));
     let cards =
         use_memo(move || zones.read().get(idx).map(|z| z.cards.clone()).unwrap_or_default());
     let layout = use_memo(move || zones.read().get(idx).map_or(ZoneLayout::Vertical, |z| z.layout));
     let name = use_memo(move || zones.read().get(idx).map_or("", |z| z.name).to_owned());
     let is_empty = use_memo(move || cards.read().is_empty());
+
+    // Per-zone live drop-preview displacements. See the Leptos demo's
+    // doc-comment for the full rationale; in short: only this zone's
+    // cards participate, with this zone's axis, so cross-zone drags
+    // produce zero shift here and the within-zone case matches the
+    // `sortable-list` demo.
+    let displacements: Memo<HashMap<u64, (f64, f64)>> = use_memo(move || {
+        let dragged = match *ctx.state.read() {
+            DragState::Dragging { id, .. } => DroppableId(id.0),
+            _ => return HashMap::new(),
+        };
+        let over = *ctx.over.read();
+        let zone_axis = match *layout.read() {
+            ZoneLayout::Vertical => Axis::Y,
+            ZoneLayout::Horizontal => Axis::X,
+        };
+        let card_ids: Vec<u64> = cards.read().iter().map(|c| c.id).collect();
+        let mut items: Vec<(DroppableId, Rect)> = ctx.with_droppables(|map| {
+            card_ids
+                .iter()
+                .filter_map(|id| map.get(&DroppableId(*id)).map(|r| (DroppableId(*id), *r)))
+                .collect()
+        });
+        items.sort_by(|a, b| {
+            let (sa, sb) = match zone_axis {
+                Axis::Y => (a.1.y, b.1.y),
+                Axis::X => (a.1.x, b.1.x),
+            };
+            sa.partial_cmp(&sb).unwrap_or(std::cmp::Ordering::Equal)
+        });
+        live_displacements(dragged, over, &items, zone_axis)
+            .into_iter()
+            .map(|(d, v)| (d.0, (v.x, v.y)))
+            .collect()
+    });
 
     let section_class = use_memo(move || match *layout.read() {
         ZoneLayout::Vertical => "zone vzone".to_owned(),
@@ -170,7 +218,7 @@ fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
             header { h2 { "{name}" } }
             div { class: "{cards_class}",
                 for c in cards.read().iter() {
-                    CardView { key: "{c.id}", card: c.clone() }
+                    CardView { key: "{c.id}", card: c.clone(), displacements }
                 }
                 div {
                     class: "{tail_class}",
@@ -184,7 +232,7 @@ fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
 }
 
 #[component]
-fn CardView(card: Card) -> Element {
+fn CardView(card: Card, displacements: Memo<HashMap<u64, (f64, f64)>>) -> Element {
     let id = card.id;
     let d = use_draggable(DraggableId(id));
     let z = use_droppable(DroppableId(id));
@@ -203,6 +251,15 @@ fn CardView(card: Card) -> Element {
             "card".to_owned()
         }
     });
+    let preview_style = use_memo(move || {
+        let (dx, dy) = displacements.read().get(&id).copied().unwrap_or((0.0, 0.0));
+        let z_idx = if dx.abs() > 0.001 || dy.abs() > 0.001 { "z-index: 1;" } else { "" };
+        format!(
+            "transform: translate({dx}px, {dy}px); \
+             transition: transform 220ms cubic-bezier(0.2, 0, 0, 1); \
+             {z_idx}"
+        )
+    });
     let label = card.label;
     let label_for_aria = label.clone();
 
@@ -210,6 +267,7 @@ fn CardView(card: Card) -> Element {
         div {
             class: "{slot_class}",
             onmounted: move |e| z.on_mounted(e),
+            style: "{preview_style}",
             div {
                 class: "{item_class}",
                 onmounted: move |e| d.on_mounted(e),
