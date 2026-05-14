@@ -33,14 +33,18 @@ pub struct UseDroppable {
 }
 
 impl UseDroppable {
-    /// `onmounted` handler. Captures the element handle and immediately
-    /// measures its bounding rect into the shared droppable registry.
+    /// `onmounted` handler. Captures the element handle, immediately
+    /// measures its bounding rect into the shared droppable registry,
+    /// and registers the handle with the context so the centralized
+    /// re-measure effect can reach it on subsequent drag-start and
+    /// auto-scroll ticks.
     pub fn on_mounted(mut self, ev: Event<MountedData>) {
         let data = ev.data();
         #[cfg(target_arch = "wasm32")]
         if let Some(rect) = crate::dom::bounding_rect_of(&data) {
             self.ctx.upsert_droppable(self.id, rect);
         }
+        self.ctx.register_element(self.id, data.clone());
         self.element.set(Some(data));
     }
 
@@ -66,11 +70,11 @@ impl UseDroppable {
 
 /// Register an element as a drop target identified by `id`.
 ///
-/// The element's bounding rect is measured when `onmounted` fires. A
-/// follow-up slice will add a re-measure on every press-start (to
-/// catch layout changes between drags) and on every auto-scroll tick;
-/// for the Stage-3 MVP, one measurement per mount is enough for the
-/// example to demonstrate the binding works end-to-end.
+/// The element's bounding rect is measured when `onmounted` fires.
+/// Re-measurement on drag-start and auto-scroll ticks is handled by
+/// a centralized effect in [`provide_dnd_context`](crate::provide_dnd_context)
+/// that iterates all registered element handles in a single batch,
+/// avoiding O(N²) cascading reactive notifications.
 ///
 /// # Example
 ///
@@ -97,44 +101,6 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
     let is_over = use_memo(move || *ctx.over.read() == Some(id));
 
-    // Re-measure the bounding rect whenever the auto-scroll loop bumps
-    // `measurement_tick`. After a viewport `scrollBy`, every droppable's
-    // viewport-relative rect has shifted; without this the highlighted
-    // target would lag behind while the page is scrolling.
-    #[cfg(target_arch = "wasm32")]
-    {
-        let element_for_measure = element;
-
-        // Re-measure when a drag starts (pointer: Idle -> Pressed, keyboard: Idle -> Dragging).
-        // Using a memo prevents re-running on Pressed -> Dragging transition.
-        let is_active = use_memo(move || {
-            matches!(*ctx.state.read(), DragState::Pressed { .. } | DragState::Dragging { .. })
-        });
-
-        use_effect(move || {
-            if *is_active.read() {
-                if let Some(mounted) = element_for_measure.peek().as_ref() {
-                    if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
-                        ctx.upsert_droppable(id, rect);
-                    }
-                }
-            }
-        });
-
-        use_effect(move || {
-            // Subscribe to the tick.
-            let _ = *ctx.measurement_tick.read();
-            if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
-                return;
-            }
-            if let Some(mounted) = element_for_measure.peek().as_ref() {
-                if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
-                    ctx.upsert_droppable(id, rect);
-                }
-            }
-        });
-    }
-
     // Live drop-preview displacement. Re-evaluates whenever state, over,
     // or droppables changes. For typical list sizes (N < 100) the
     // per-droppable computation is fine.
@@ -158,7 +124,10 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         displacements.into_iter().find(|(d, _)| *d == id).map_or((0.0, 0.0), |(_, v)| (v.x, v.y))
     });
 
-    use_drop(move || ctx.remove_droppable(id));
+    use_drop(move || {
+        ctx.remove_droppable(id);
+        ctx.unregister_element(id);
+    });
 
     UseDroppable { id, element, is_over, displacement, ctx }
 }

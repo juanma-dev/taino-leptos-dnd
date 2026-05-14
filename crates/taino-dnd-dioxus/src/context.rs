@@ -5,6 +5,7 @@
 //! it from any descendant with [`use_dnd_context`].
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 use dioxus::prelude::*;
 use taino_dnd_core::{
@@ -58,6 +59,13 @@ pub struct DndContext {
     /// the auto-scroll loop after a `scrollBy` so collision detection
     /// uses up-to-date rects.
     pub(crate) measurement_tick: Signal<u64>,
+    /// Non-reactive registry of droppable element handles. Populated by
+    /// `use_droppable` on mount and cleared on drop. The centralized
+    /// re-measure effect in `provide_dnd_context` iterates this map
+    /// and writes all rects into `droppables` in a single batch,
+    /// avoiding the O(N²) cascading notification problem that occurs
+    /// when N individual effects each write one-by-one.
+    pub(crate) elements: Signal<HashMap<DroppableId, Rc<MountedData>>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -117,11 +125,67 @@ impl DndContext {
     ///
     /// Only the wasm32 build path calls this; native builds keep the
     /// registry empty (there's no DOM to measure against).
+    ///
+    /// **Short-circuits** when the stored rect already matches `rect`.
+    /// This is critical for performance: the auto-scroll loop bumps
+    /// `measurement_tick` once, causing N `use_droppable` effects to
+    /// re-measure in the same microtask.  If every one of those writes
+    /// into the `droppables` signal (even with the identical value),
+    /// Dioxus notifies all subscribers N times and each subscriber's
+    /// memo re-evaluates — O(N²) work per scroll tick.  Skipping
+    /// the no-op write keeps the cost at O(N).
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn upsert_droppable(mut self, id: DroppableId, rect: Rect) {
+        // Peek first (non-reactive) to avoid subscribing effects that
+        // call upsert_droppable to the droppables signal — that would
+        // create a read→write→read loop.
+        let current = self.droppables.peek();
+        if current.get(&id) == Some(&rect) {
+            return;
+        }
+        drop(current);
         self.droppables.with_mut(|map| {
             map.insert(id, rect);
         });
+    }
+
+    /// Store the element handle so the centralized re-measure effect
+    /// can reach it. Called from `use_droppable`'s `on_mounted`.
+    pub(crate) fn register_element(mut self, id: DroppableId, data: Rc<MountedData>) {
+        self.elements.with_mut(|map| {
+            map.insert(id, data);
+        });
+    }
+
+    /// Remove the element handle. Called on droppable unmount.
+    pub(crate) fn unregister_element(mut self, id: DroppableId) {
+        self.elements.with_mut(|map| {
+            map.remove(&id);
+        });
+    }
+
+    /// Re-measure **all** registered droppable elements and write the
+    /// updated rects into `self.droppables` in one batch. This avoids
+    /// the O(N²) cascade that happens when N individual effects each
+    /// write one rect at a time (every write notifies all displacement
+    /// memos, and each memo reads the full map).
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn remeasure_all(mut self) {
+        let elements = self.elements.peek().clone();
+        let mut changed = false;
+        self.droppables.with_mut(|map| {
+            for (id, mounted) in &elements {
+                if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
+                    let old = map.get(id);
+                    if old != Some(&rect) {
+                        map.insert(*id, rect);
+                        changed = true;
+                    }
+                }
+            }
+        });
+        // Suppress notification if nothing actually moved.
+        let _ = changed;
     }
 
     /// Remove a droppable from the registry (call on unmount).
@@ -269,6 +333,7 @@ pub fn provide_dnd_context() -> DndContext {
     let restrict_container = use_signal::<Option<Rect>>(|| None);
     let auto_scroll = use_signal(AutoScrollConfig::default);
     let measurement_tick = use_signal(|| 0_u64);
+    let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
     let ctx = DndContext {
         state,
         droppables,
@@ -280,6 +345,7 @@ pub fn provide_dnd_context() -> DndContext {
         restrict_container,
         auto_scroll,
         measurement_tick,
+        elements,
     };
     use_context_provider(|| ctx);
     crate::autoscroll::install(ctx);
@@ -293,6 +359,34 @@ pub fn provide_dnd_context() -> DndContext {
             }
         }
     });
+
+    // ── Centralized re-measure effects ─────────────────────────────
+    //
+    // These replace the per-droppable effects that previously lived in
+    // `use_droppable`. By iterating all element handles and writing all
+    // rects in a single `with_mut` call, we trigger subscribers exactly
+    // once instead of N times — O(N) instead of O(N²).
+    #[cfg(target_arch = "wasm32")]
+    {
+        // Re-measure when a drag starts (Pressed or Dragging).
+        let is_active = use_memo(move || {
+            matches!(*ctx.state.read(), DragState::Pressed { .. } | DragState::Dragging { .. })
+        });
+        use_effect(move || {
+            if *is_active.read() {
+                ctx.remeasure_all();
+            }
+        });
+
+        // Re-measure when the auto-scroll loop bumps measurement_tick.
+        use_effect(move || {
+            let _ = *ctx.measurement_tick.read();
+            if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
+                return;
+            }
+            ctx.remeasure_all();
+        });
+    }
 
     ctx
 }
