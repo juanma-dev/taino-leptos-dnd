@@ -863,6 +863,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-multi-zone"
+version = "0.0.1"
+dependencies = [
+ "console_error_panic_hook",
+ "leptos",
+ "taino-dnd-core",
+ "taino-dnd-leptos",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "example-multi-zone-dioxus"
+version = "0.0.1"
+dependencies = [
+ "console_error_panic_hook",
+ "dioxus",
+ "taino-dnd-core",
+ "taino-dnd-dioxus",
+]
+
+[[package]]
 name = "example-sortable-list"
 version = "0.0.1"
 dependencies = [

@@ -7,6 +7,8 @@ members = [
     "examples/sortable-list",
     "examples/sortable-list-dioxus",
     "examples/kanban",
+    "examples/multi-zone",
+    "examples/multi-zone-dioxus",
 ]
 # Future members (Stage 3): "crates/taino-dnd-yew"
 
