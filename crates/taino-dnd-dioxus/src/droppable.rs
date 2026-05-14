@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use taino_dnd_core::{detect_axis, live_displacements, Axis, DragState, DroppableId, Rect};
+use taino_dnd_core::{detect_axis, live_displacements, Axis, DroppableId, Rect};
 
 use crate::context::{use_dnd_context, DndContext};
 
@@ -101,16 +101,17 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
     let is_over = use_memo(move || *ctx.over.read() == Some(id));
 
-    // Live drop-preview displacement. Re-evaluates whenever state, over,
-    // or droppables changes. For typical list sizes (N < 100) the
-    // per-droppable computation is fine.
+    // Live drop-preview displacement. Subscribes to `dragged_droppable`
+    // (deduped, only changes on drag start/end) and `over` (changes on
+    // hover target switch). Uses peek() for droppables because
+    // displacements are scroll-invariant — all rects shift by the same
+    // delta during scroll, so relative order and step sizes don't change.
     let displacement = use_memo(move || {
-        let dragged = match *ctx.state.read() {
-            DragState::Dragging { id, .. } => DroppableId(id.0),
-            _ => return (0.0, 0.0),
+        let Some(dragged) = *ctx.dragged_droppable.read() else {
+            return (0.0, 0.0);
         };
         let over = *ctx.over.read();
-        let map = ctx.droppables.read();
+        let map = ctx.droppables.peek();
         let mut items: Vec<(DroppableId, Rect)> = map.iter().map(|(d, r)| (*d, *r)).collect();
         let axis = detect_axis(&items);
         items.sort_by(|a, b| {

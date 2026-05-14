@@ -75,6 +75,11 @@ pub struct DndContext {
     /// `autoscroll.rs`, so native `cargo check` sees it as unread.
     #[allow(dead_code)]
     pub(crate) raf_scrolling: Signal<bool>,
+    /// Deduped memo of the currently dragged item's droppable ID.
+    /// Changes only on drag start/end, NOT on every `pointermove`.
+    /// Displacement memos subscribe to this instead of raw `state`,
+    /// avoiding 18× re-evaluations per pointermove event.
+    pub(crate) dragged_droppable: Memo<Option<DroppableId>>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -361,6 +366,13 @@ pub fn provide_dnd_context() -> DndContext {
     let measurement_tick = use_signal(|| 0_u64);
     let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
     let raf_scrolling = use_signal(|| false);
+    // Deduped dragged-droppable memo: only changes on drag start/end,
+    // NOT on every pointermove. Displacement memos subscribe to this
+    // instead of raw `state` to avoid N re-evaluations per move.
+    let dragged_droppable = use_memo(move || match *state.read() {
+        DragState::Dragging { id, .. } => Some(DroppableId(id.0)),
+        _ => None,
+    });
     let ctx = DndContext {
         state,
         droppables,
@@ -374,6 +386,7 @@ pub fn provide_dnd_context() -> DndContext {
         measurement_tick,
         elements,
         raf_scrolling,
+        dragged_droppable,
     };
     use_context_provider(|| ctx);
     crate::autoscroll::install(ctx);
