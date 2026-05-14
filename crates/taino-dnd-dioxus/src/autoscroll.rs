@@ -100,7 +100,11 @@ mod imp {
             if *ctx.raf_scrolling.peek() {
                 return;
             }
-            ctx.request_remeasure();
+            // Call remeasure_all directly (not request_remeasure) so the
+            // short-circuit check works immediately: if the RAF loop
+            // already measured this frame, no rects will have changed
+            // and remeasure_all returns without notifying subscribers.
+            ctx.remeasure_all();
             let DragState::Dragging { start, current, .. } = *ctx.state.peek() else {
                 return;
             };

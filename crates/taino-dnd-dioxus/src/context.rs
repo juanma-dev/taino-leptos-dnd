@@ -388,15 +388,16 @@ pub fn provide_dnd_context() -> DndContext {
         }
     });
 
-    // ── Centralized re-measure effects ─────────────────────────────
+    // ── Centralized re-measure effect ──────────────────────────────
     //
-    // These replace the per-droppable effects that previously lived in
-    // `use_droppable`. By iterating all element handles and writing all
-    // rects in a single `with_mut` call, we trigger subscribers exactly
-    // once instead of N times — O(N) instead of O(N²).
+    // Re-measure all droppable rects when a drag starts. Layout can
+    // change between drags (e.g. items reordered after a previous drop).
+    //
+    // Scroll-driven re-measurement is handled directly by the RAF loop
+    // and the scroll listener (both call `remeasure_all()` inline),
+    // so no `measurement_tick` effect is needed here.
     #[cfg(target_arch = "wasm32")]
     {
-        // Re-measure when a drag starts (Pressed or Dragging).
         let is_active = use_memo(move || {
             matches!(*ctx.state.read(), DragState::Pressed { .. } | DragState::Dragging { .. })
         });
@@ -404,15 +405,6 @@ pub fn provide_dnd_context() -> DndContext {
             if *is_active.read() {
                 ctx.remeasure_all();
             }
-        });
-
-        // Re-measure when the auto-scroll loop bumps measurement_tick.
-        use_effect(move || {
-            let _ = *ctx.measurement_tick.read();
-            if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
-                return;
-            }
-            ctx.remeasure_all();
         });
     }
 
