@@ -40,6 +40,7 @@ pub(crate) const fn install(_ctx: DndContext) {}
 
 #[cfg(target_arch = "wasm32")]
 mod imp {
+    use std::cell::Cell;
     use std::{cell::RefCell, rc::Rc};
 
     use leptos::prelude::*;
@@ -53,6 +54,13 @@ mod imp {
     pub(super) fn install(ctx: DndContext) {
         install_scroll_listener(ctx);
 
+        // Generation counter: bumped every time `start_loop` is called.
+        // Each RAF closure captures the generation it was created at and
+        // self-terminates if a newer generation exists — this prevents
+        // loop accumulation when a new drag starts before the previous
+        // loop has had a chance to see the idle transition.
+        let generation = Rc::new(Cell::new(0_u64));
+
         // `Memo` (not `Signal::derive`) is load-bearing: every
         // `pointermove` updates `state.current`, so a non-deduped
         // derived signal would re-fire this effect on every move and
@@ -63,7 +71,7 @@ mod imp {
         let is_dragging = Memo::new(move |_| matches!(ctx.state.get(), DragState::Dragging { .. }));
         Effect::new(move |_| {
             if is_dragging.get() {
-                start_loop(ctx);
+                start_loop(ctx, &generation);
             }
         });
     }
@@ -96,10 +104,16 @@ mod imp {
         listener.forget();
     }
 
-    fn start_loop(ctx: DndContext) {
+    fn start_loop(ctx: DndContext, generation: &Rc<Cell<u64>>) {
         let Some(win) = web_sys::window() else {
             return;
         };
+
+        // Bump generation: any older RAF loop will see a mismatch and
+        // self-terminate on its next tick.
+        let my_gen = generation.get().wrapping_add(1);
+        generation.set(my_gen);
+        let gen = generation.clone();
 
         // Standard wasm-bindgen RAF re-scheduling pattern: the closure holds
         // a shared handle to itself so it can call `requestAnimationFrame`
@@ -110,6 +124,12 @@ mod imp {
         let win_for_cb = win.clone();
 
         *cb.borrow_mut() = Some(Closure::wrap(Box::new(move || {
+            // Stale loop from a previous drag? Terminate.
+            if gen.get() != my_gen {
+                cb_clone.borrow_mut().take();
+                return;
+            }
+
             let DragState::Dragging { current, .. } = ctx.state.get_untracked() else {
                 // Drag ended — drop the closure to free `ctx`.
                 cb_clone.borrow_mut().take();

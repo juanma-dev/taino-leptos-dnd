@@ -88,8 +88,15 @@ impl DndContext {
     ///
     /// Only the wasm32 build path calls this; native builds keep the registry
     /// empty (there's no DOM to measure against).
+    ///
+    /// **Short-circuits** when the stored rect already matches `rect`,
+    /// avoiding a redundant notification to all subscribers.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn upsert_droppable(self, id: DroppableId, rect: Rect) {
+        let dominated = self.droppables.with_untracked(|map| map.get(&id) == Some(&rect));
+        if dominated {
+            return;
+        }
         self.droppables.update(|map| {
             map.insert(id, rect);
         });
