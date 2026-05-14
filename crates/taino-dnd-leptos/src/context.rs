@@ -143,16 +143,35 @@ impl DndContext {
 
     /// Move keyboard-driven focus to a neighbor droppable in `direction`.
     ///
-    /// Returns the new `over` id (or the old one if no neighbor exists).
+    /// Returns the new `over` id (or the old one if no neighbor exists —
+    /// i.e. we're at the edge of the layout in that direction).
+    ///
+    /// Beyond updating `over`, this also synthesizes a `current` value
+    /// in the [`DragState::Dragging`] variant so the `DragOverlay`
+    /// translates to the new target's slot — giving keyboard drags the
+    /// same visual feel as mouse drags (the overlay follows the
+    /// selection, neighbors part to make room). Without this the
+    /// overlay would stay glued to the source position and the
+    /// keyboard user would see "an invisible something" opening up the
+    /// gap.
     pub(crate) fn keyboard_step(self, direction: Direction) -> Option<DroppableId> {
         let from = self.over.get_untracked()?;
         let next = self
             .droppables
             .with(|map| spatial_neighbor(from, direction, map.iter().map(|(id, r)| (*id, *r))));
-        if let Some(id) = next {
-            self.over.set(Some(id));
+        let Some(id) = next else {
+            return Some(from);
+        };
+        self.over.set(Some(id));
+
+        if let DragState::Dragging { id: dragged_id, start, .. } = self.state.get_untracked() {
+            let target_rect = self.droppables.with(|map| map.get(&id).copied());
+            if let Some(rect) = target_rect {
+                let new_current = Point::new(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0);
+                self.state.set(DragState::Dragging { id: dragged_id, start, current: new_current });
+            }
         }
-        next.or(Some(from))
+        Some(id)
     }
 
     /// Push a screen-reader announcement.
