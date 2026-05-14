@@ -265,8 +265,11 @@ impl DndContext {
     }
 
     /// Ask all live `use_droppable` instances to re-measure their bounding
-    /// rects on the next reactive tick. Called from the auto-scroll loop
-    /// after a `scrollBy`.
+    /// rects on the next reactive tick. Called by the auto-scroll loop
+    /// after a programmatic `scrollBy`, and by the window scroll
+    /// listener on user-initiated scrolls (wheel, trackpad, scrollbar)
+    /// so droppable rects stay accurate when the page moves under the
+    /// cursor mid-drag.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn request_remeasure(self) {
         self.measurement_tick.update(|t| *t = t.wrapping_add(1));

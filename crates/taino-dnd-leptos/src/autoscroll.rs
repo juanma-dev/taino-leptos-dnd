@@ -1,14 +1,22 @@
-//! Viewport-edge auto-scroll driven by a `requestAnimationFrame` loop.
+//! Viewport-edge auto-scroll driven by a `requestAnimationFrame` loop,
+//! plus a window `scroll` listener that handles **user-initiated**
+//! scrolling (wheel, trackpad, scrollbar drag) during a drag.
 //!
 //! `install` is called from [`provide_dnd_context`](crate::provide_dnd_context)
-//! and wires an `Effect` that, while the state is `Dragging`, schedules RAF
-//! ticks that:
+//! and wires:
 //!
-//! 1. Compute a scroll velocity from the current pointer position and the
-//!    viewport rect, via [`taino_dnd_core::scroll_velocity`].
-//! 2. `window.scrollBy(dx, dy)` when non-zero.
-//! 3. Bump `ctx.measurement_tick` so each `use_droppable` re-measures.
-//! 4. Re-run collision detection at the (unchanged) pointer position.
+//! 1. An `Effect` that, when state enters `Dragging`, schedules a RAF
+//!    loop. Each tick computes a scroll velocity from the pointer
+//!    position via [`taino_dnd_core::scroll_velocity`] and calls
+//!    `window.scrollBy(dx, dy)`.
+//! 2. A `scroll` event listener on the window. Whenever the page
+//!    scrolls (for any reason — auto-scroll's `scrollBy`, mouse wheel,
+//!    trackpad, scrollbar drag) and we're currently dragging, the
+//!    listener bumps `measurement_tick` so each `use_droppable`
+//!    re-measures, then re-runs collision detection at the unchanged
+//!    pointer position. This single listener covers both programmatic
+//!    and user scrolls — the RAF tick stays focused on producing
+//!    `scrollBy` velocity.
 //!
 //! Scope is intentionally limited to the document/viewport. Arbitrary
 //! overflow ancestors are deferred — measuring scroll containers requires
@@ -43,6 +51,8 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
+        install_scroll_listener(ctx);
+
         // `Memo` (not `Signal::derive`) is load-bearing: every
         // `pointermove` updates `state.current`, so a non-deduped
         // derived signal would re-fire this effect on every move and
@@ -56,6 +66,34 @@ mod imp {
                 start_loop(ctx);
             }
         });
+    }
+
+    /// Install a window `scroll` listener that, while we're dragging,
+    /// asks every droppable to re-measure and re-runs collision
+    /// detection at the (unchanged) pointer position. Fires for both
+    /// programmatic scrolls from the RAF loop and user-initiated
+    /// scrolls (wheel, trackpad, scrollbar) — the latter were the
+    /// case that broke before this listener existed, since nothing
+    /// else triggered a remeasure between `pointermove` events.
+    fn install_scroll_listener(ctx: DndContext) {
+        let Some(win) = web_sys::window() else {
+            return;
+        };
+        let listener = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            if !matches!(ctx.state.get_untracked(), DragState::Dragging { .. }) {
+                return;
+            }
+            ctx.request_remeasure();
+            let DragState::Dragging { start, current, .. } = ctx.state.get_untracked() else {
+                return;
+            };
+            let effective = ctx.effective_point(start, current);
+            ctx.update_over(effective);
+        }) as Box<dyn FnMut(web_sys::Event)>);
+        let _ = win.add_event_listener_with_callback("scroll", listener.as_ref().unchecked_ref());
+        // The listener lives for the page lifetime — a context is
+        // installed once near the root of a drag-and-drop region.
+        listener.forget();
     }
 
     fn start_loop(ctx: DndContext) {
