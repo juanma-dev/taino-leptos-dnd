@@ -132,9 +132,16 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 
         // Re-measure when a drag starts. Layout can change between drags
         // (e.g. items reordered after a previous drop).
-        // Using a derived signal ensures we catch both pointer (Idle -> Pressed)
-        // and keyboard (Idle -> Dragging) without re-running on Pressed -> Dragging.
-        let is_active = Signal::derive(move || {
+        //
+        // `Memo` (not `Signal::derive`) is load-bearing: the keyboard sensor
+        // updates `state.current` on every arrow step, and a non-deduped
+        // derived signal would re-fire this effect mid-drag. Re-measuring
+        // mid-drag captures the *post-CSS-transform* rect of displaced
+        // wrappers (since `getBoundingClientRect` includes transforms),
+        // which then corrupts spatial-neighbor and displacement math for
+        // subsequent arrow presses. With `Memo`, the effect only fires on
+        // the actual Idle → Pressed/Dragging transition.
+        let is_active = Memo::new(move |_| {
             matches!(ctx.state.get(), DragState::Pressed { .. } | DragState::Dragging { .. })
         });
 
