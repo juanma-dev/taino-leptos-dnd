@@ -13,21 +13,24 @@
 //! Cards carry unique integer ids; each zone has a "tail" droppable so
 //! empty zones (and "drop at end" intent) remain reachable.
 //!
-//! Live drop-preview displacement is computed **per zone**: each
-//! `ZoneView` runs [`taino_dnd_core::live_displacements`] over its own
-//! cards' rects with that zone's axis (Y for vertical, X for
-//! horizontal). When both the dragged card and the hovered target
-//! belong to the same zone, neighbors part exactly like the
-//! `sortable-list-dioxus` demo; when they belong to different zones,
-//! the within-zone result is all-zero and the [`DragOverlay`] alone
-//! communicates the intent.
+//! Live drop-preview displacement is computed **per zone** by
+//! [`zone_displacements`]:
+//!
+//! * **Within-zone** (dragged and over both in this zone): defers to
+//!   [`taino_dnd_core::live_displacements`] — neighbors part exactly
+//!   like the `sortable-list-dioxus` demo, along the zone's axis.
+//! * **Cross-zone destination** (over is in this zone, dragged is
+//!   from elsewhere): items at and after `over` shift forward by
+//!   `over`'s own size to open a landing slot. The user sees zone B
+//!   part to make room while dragging a card from zone A.
+//! * **Source-only or unrelated**: no shift here.
 
 #![allow(non_snake_case)]
 
 use std::collections::HashMap;
 
 use dioxus::prelude::*;
-use taino_dnd_core::{live_displacements, Axis, Rect};
+use taino_dnd_core::{live_displacements, Axis, Rect, Vector};
 use taino_dnd_dioxus::{
     provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
     DragState, DraggableId, DroppableId,
@@ -64,6 +67,43 @@ struct Zone {
 
 fn card(id: u64, label: &str) -> Card {
     Card { id, label: label.to_owned() }
+}
+
+/// Per-zone displacement that handles both within-zone reorders and
+/// cross-zone destination shifts. See the module-level docs for the
+/// behavior matrix.
+fn zone_displacements(
+    dragged: DroppableId,
+    over: Option<DroppableId>,
+    items: &[(DroppableId, Rect)],
+    axis: Axis,
+) -> Vec<(DroppableId, Vector)> {
+    let dragged_idx = items.iter().position(|(id, _)| *id == dragged);
+    let over_idx = over.and_then(|o| items.iter().position(|(id, _)| *id == o));
+
+    match (dragged_idx, over_idx) {
+        (Some(_), Some(_)) => live_displacements(dragged, over, items, axis),
+        (None, Some(o)) => {
+            let mut out: Vec<(DroppableId, Vector)> =
+                items.iter().map(|(id, _)| (*id, Vector::default())).collect();
+            // Use `over`'s own size for the shift step so the gap that
+            // opens matches a "typical" card slot in this zone — see
+            // the Leptos demo's doc for the full rationale.
+            let step = match axis {
+                Axis::X => items[o].1.width,
+                Axis::Y => items[o].1.height,
+            };
+            let vec = match axis {
+                Axis::X => Vector::new(step, 0.0),
+                Axis::Y => Vector::new(0.0, step),
+            };
+            for slot in out.iter_mut().skip(o) {
+                slot.1 = vec;
+            }
+            out
+        }
+        _ => items.iter().map(|(id, _)| (*id, Vector::default())).collect(),
+    }
 }
 
 fn main() {
@@ -181,7 +221,7 @@ fn ZoneView(idx: usize, zones: Signal<Vec<Zone>>) -> Element {
             };
             sa.partial_cmp(&sb).unwrap_or(std::cmp::Ordering::Equal)
         });
-        live_displacements(dragged, over, &items, zone_axis)
+        zone_displacements(dragged, over, &items, zone_axis)
             .into_iter()
             .map(|(d, v)| (d.0, (v.x, v.y)))
             .collect()
