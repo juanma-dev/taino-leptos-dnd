@@ -73,17 +73,23 @@ mod imp {
 
     /// Install a window `scroll` listener that, while we're dragging,
     /// asks every droppable to re-measure and re-runs collision
-    /// detection at the (unchanged) pointer position. Fires for both
-    /// programmatic scrolls from the RAF loop and user-initiated
-    /// scrolls (wheel, trackpad, scrollbar) — the latter were the
-    /// case that broke before this listener existed, since nothing
-    /// else triggered a remeasure between `pointermove` events.
+    /// detection at the (unchanged) pointer position.
+    ///
+    /// **Skips** when `raf_scrolling` is `true` — that means the scroll
+    /// was caused by the RAF loop's own `scrollBy`, and the RAF loop
+    /// already handles remeasure + collision itself. Without this
+    /// guard, every auto-scroll frame would produce a double reactive
+    /// cascade (RAF + scroll listener both firing).
     fn install_scroll_listener(ctx: DndContext) {
         let Some(win) = web_sys::window() else {
             return;
         };
         let listener = Closure::wrap(Box::new(move |_: web_sys::Event| {
             if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
+                return;
+            }
+            // Skip if this scroll was caused by the RAF loop's scrollBy.
+            if *ctx.raf_scrolling.peek() {
                 return;
             }
             ctx.request_remeasure();
@@ -99,7 +105,7 @@ mod imp {
         listener.forget();
     }
 
-    fn start_loop(ctx: DndContext) {
+    fn start_loop(mut ctx: DndContext) {
         let Some(win) = web_sys::window() else {
             return;
         };
@@ -124,16 +130,23 @@ mod imp {
             let v = scroll_velocity(current, viewport_rect(&win_for_cb), config);
 
             if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
+                // Guard: suppress the scroll listener while we do our
+                // own scrollBy + remeasure + update_over sequence.
+                ctx.raf_scrolling.set(true);
                 win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
-                ctx.request_remeasure();
-                // Re-run collision at the (unchanged) pointer position
-                // so the highlighted droppable updates as droppables
-                // shift under the cursor.
+
+                // Directly remeasure and update collision — this is
+                // synchronous, so the guard is still active and the
+                // scroll listener (which may fire synchronously from
+                // scrollBy in some browsers) is suppressed.
+                ctx.remeasure_all();
                 let DragState::Dragging { start, .. } = *ctx.state.peek() else {
+                    ctx.raf_scrolling.set(false);
                     return;
                 };
                 let effective = ctx.effective_point(start, current);
                 ctx.update_over(effective);
+                ctx.raf_scrolling.set(false);
             }
 
             // Schedule the next tick while still dragging.

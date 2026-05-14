@@ -66,6 +66,15 @@ pub struct DndContext {
     /// avoiding the O(N²) cascading notification problem that occurs
     /// when N individual effects each write one-by-one.
     pub(crate) elements: Signal<HashMap<DroppableId, Rc<MountedData>>>,
+    /// Guard flag: `true` while the RAF auto-scroll loop is executing
+    /// its `scrollBy` + remeasure + `update_over` sequence. The window
+    /// `scroll` listener checks this and skips its own (duplicate) call
+    /// when the scroll was caused by the RAF loop's `scrollBy`.
+    ///
+    /// Only read inside `#[cfg(target_arch = "wasm32")]` blocks in
+    /// `autoscroll.rs`, so native `cargo check` sees it as unread.
+    #[allow(dead_code)]
+    pub(crate) raf_scrolling: Signal<bool>,
 }
 
 /// The outcome of a completed drag interaction.
@@ -169,23 +178,40 @@ impl DndContext {
     /// the O(N²) cascade that happens when N individual effects each
     /// write one rect at a time (every write notifies all displacement
     /// memos, and each memo reads the full map).
+    ///
+    /// **Only notifies subscribers when at least one rect actually
+    /// changed.** `with_mut` in Dioxus always triggers a notification,
+    /// so we peek first to decide whether the write is necessary.
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn remeasure_all(mut self) {
         let elements = self.elements.peek().clone();
-        let mut changed = false;
+
+        // Phase 1: measure all elements and collect new rects.
+        let mut new_rects: Vec<(DroppableId, Rect)> = Vec::with_capacity(elements.len());
+        for (id, mounted) in &elements {
+            if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
+                new_rects.push((*id, rect));
+            }
+        }
+
+        // Phase 2: check if anything actually differs from the current
+        // map. If not, skip the `with_mut` entirely so Dioxus doesn't
+        // notify subscribers (which would trigger a full displacement
+        // cascade for zero benefit).
+        let current = self.droppables.peek();
+        let any_changed = new_rects.iter().any(|(id, rect)| current.get(id) != Some(rect));
+        drop(current);
+
+        if !any_changed {
+            return;
+        }
+
+        // Phase 3: apply all changes in one write → one notification.
         self.droppables.with_mut(|map| {
-            for (id, mounted) in &elements {
-                if let Some(rect) = crate::dom::bounding_rect_of(mounted) {
-                    let old = map.get(id);
-                    if old != Some(&rect) {
-                        map.insert(*id, rect);
-                        changed = true;
-                    }
-                }
+            for (id, rect) in new_rects {
+                map.insert(id, rect);
             }
         });
-        // Suppress notification if nothing actually moved.
-        let _ = changed;
     }
 
     /// Remove a droppable from the registry (call on unmount).
@@ -334,6 +360,7 @@ pub fn provide_dnd_context() -> DndContext {
     let auto_scroll = use_signal(AutoScrollConfig::default);
     let measurement_tick = use_signal(|| 0_u64);
     let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
+    let raf_scrolling = use_signal(|| false);
     let ctx = DndContext {
         state,
         droppables,
@@ -346,6 +373,7 @@ pub fn provide_dnd_context() -> DndContext {
         auto_scroll,
         measurement_tick,
         elements,
+        raf_scrolling,
     };
     use_context_provider(|| ctx);
     crate::autoscroll::install(ctx);
