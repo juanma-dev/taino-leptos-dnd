@@ -20,6 +20,7 @@ dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
 # the taino-dnd-leptos crate.
 wasm-bindgen = { workspace = true }
 web-sys = { workspace = true, features = [
+    "CssStyleDeclaration",
     "Document",
     "DomRect",
     "Element",
