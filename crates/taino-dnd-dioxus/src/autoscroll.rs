@@ -55,11 +55,17 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
-        // Shared scroll position tracker. The scroll listener computes
-        // the delta from this value on each event and updates it.
+        // Shared scroll position tracker, written by **both** the RAF
+        // tick (after its programmatic `scrollBy`) and the window
+        // `scroll` listener (on every event). Sharing this is what
+        // lets the listener naturally skip RAF-induced scroll events:
+        // by the time the async `scroll` event fires for the RAF's
+        // `scrollBy`, the RAF has already updated `last_scroll` to the
+        // post-scroll position, so the listener computes a zero delta
+        // and bails. No `raf_scrolling` flag needed.
         let last_scroll = Rc::new(Cell::new(read_window_scroll()));
 
-        install_scroll_listener(ctx, last_scroll);
+        install_scroll_listener(ctx, last_scroll.clone());
 
         // Generation counter: bumped every time `start_loop` is called.
         // Each RAF closure captures the generation it was created at and
@@ -78,7 +84,7 @@ mod imp {
         let is_dragging = use_memo(move || matches!(*ctx.state.read(), DragState::Dragging { .. }));
         use_effect(move || {
             if *is_dragging.read() {
-                start_loop(ctx, &generation);
+                start_loop(ctx, &generation, last_scroll.clone());
             }
         });
     }
@@ -135,7 +141,7 @@ mod imp {
         listener.forget();
     }
 
-    fn start_loop(ctx: DndContext, generation: &Rc<Cell<u64>>) {
+    fn start_loop(ctx: DndContext, generation: &Rc<Cell<u64>>, last_scroll: Rc<Cell<(f64, f64)>>) {
         let Some(win) = web_sys::window() else {
             return;
         };
@@ -172,11 +178,33 @@ mod imp {
             let v = scroll_velocity(current, viewport_rect(&win_for_cb), config);
 
             if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
-                // Only `scrollBy` here — the window `scroll` listener
-                // catches the resulting event (and any user-initiated
-                // scroll) and is the single source of truth for
-                // shifting droppable rects and re-running collision.
+                // Measure scroll position before and after so the
+                // shift is sized by what actually moved (clamped to 0
+                // at page edges). Update `last_scroll` to the
+                // post-scroll value: the browser's async `scroll`
+                // event will then fire on the listener with a zero
+                // delta and bail, so the RAF and listener don't both
+                // try to shift for the same scroll.
+                let (before_x, before_y) = (
+                    win_for_cb.scroll_x().unwrap_or(0.0),
+                    win_for_cb.scroll_y().unwrap_or(0.0),
+                );
                 win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
+                let (after_x, after_y) = (
+                    win_for_cb.scroll_x().unwrap_or(0.0),
+                    win_for_cb.scroll_y().unwrap_or(0.0),
+                );
+                last_scroll.set((after_x, after_y));
+
+                let dx = after_x - before_x;
+                let dy = after_y - before_y;
+                if dx != 0.0 || dy != 0.0 {
+                    ctx.shift_droppable_rects(-dx, -dy);
+                    if let DragState::Dragging { start, .. } = *ctx.state.peek() {
+                        let effective = ctx.effective_point(start, current);
+                        ctx.update_over(effective);
+                    }
+                }
             }
 
             // Schedule the next tick while still dragging.
