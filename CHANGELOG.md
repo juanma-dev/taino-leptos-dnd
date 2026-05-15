@@ -85,6 +85,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inline `#[allow(clippy::expect_used)]`.
 
 ### Fixed
+- **Drop-preview flicker during mid-drag scroll.** `getBoundingClientRect`
+  returns rects that **include** the element's CSS `transform`, and the
+  drop-preview applies `transform: translate(...)` to displaced cards.
+  The previous mid-drag remeasure path (subscribed to `measurement_tick`)
+  fed those transformed rects back into the registry, which made
+  `update_over` report no containment, which cleared the transform,
+  which put the cursor back over the un-transformed card — repeating at
+  frame rate. Now the drag path **never** calls `getBoundingClientRect`
+  after pickup: scroll deltas are applied to the registry via a new
+  `shift_droppable_rects` operation that's mathematically equivalent for
+  pure scroll and inert to transforms. Pickup-time `remeasure_all` /
+  per-droppable `getBoundingClientRect` still runs (no transforms
+  applied yet at that moment).
+- Window `scroll` event listener now the single source of truth for
+  mid-drag rect updates. The auto-scroll RAF loop just calls `scrollBy`;
+  the listener catches both the programmatic scroll and any
+  user-initiated wheel / trackpad / scrollbar scroll, shifts rects by
+  the delta, and re-runs `update_over`. Previously, user wheel
+  scrolling mid-drag bypassed the RAF path entirely and `over` would
+  freeze on whichever card was last under the cursor.
+- Containment-first `update_over` (via
+  `taino_dnd_core::pointer_within`) replaces the previous greedy
+  `closest_center` default. The pointer must lie inside a droppable's
+  rect to activate it. Fixes premature drop-preview activation in
+  multi-zone layouts (the gap between two zones no longer "steals" the
+  drop slot of the nearest neighbor).
 - `DndContext::announce` now blanks the live region and re-sets the text
   on a short timer (50 ms) on wasm targets. Without this, screen readers
   (NVDA observed; JAWS / `VoiceOver` documented to behave the same)

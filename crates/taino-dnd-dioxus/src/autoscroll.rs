@@ -55,7 +55,11 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
-        install_scroll_listener(ctx);
+        // Shared scroll position tracker. The scroll listener computes
+        // the delta from this value on each event and updates it.
+        let last_scroll = Rc::new(Cell::new(read_window_scroll()));
+
+        install_scroll_listener(ctx, last_scroll);
 
         // Generation counter: bumped every time `start_loop` is called.
         // Each RAF closure captures the generation it was created at and
@@ -79,32 +83,46 @@ mod imp {
         });
     }
 
-    /// Install a window `scroll` listener that, while we're dragging,
-    /// asks every droppable to re-measure and re-runs collision
-    /// detection at the (unchanged) pointer position.
+    fn read_window_scroll() -> (f64, f64) {
+        web_sys::window()
+            .map_or((0.0, 0.0), |w| (w.scroll_x().unwrap_or(0.0), w.scroll_y().unwrap_or(0.0)))
+    }
+
+    /// Install a window `scroll` listener that handles **all** scrolls
+    /// while dragging — both the programmatic ones produced by the RAF
+    /// loop's `scrollBy` and user-initiated ones (wheel, trackpad,
+    /// scrollbar). On each event it computes the scroll delta against
+    /// the last observed position and applies it to the droppable
+    /// registry via `shift_droppable_rects`, then re-runs collision at
+    /// the unchanged pointer position.
     ///
-    /// **Skips** when `raf_scrolling` is `true` — that means the scroll
-    /// was caused by the RAF loop's own `scrollBy`, and the RAF loop
-    /// already handles remeasure + collision itself. Without this
-    /// guard, every auto-scroll frame would produce a double reactive
-    /// cascade (RAF + scroll listener both firing).
-    fn install_scroll_listener(ctx: DndContext) {
+    /// Shift (instead of `remeasure_all`) is the key detail: a
+    /// remeasure mid-drag would call `getBoundingClientRect` on
+    /// elements that have the drop-preview `transform: translate(...)`
+    /// applied, feeding the transform back into the registry and
+    /// producing a flicker loop.
+    fn install_scroll_listener(ctx: DndContext, last_scroll: Rc<Cell<(f64, f64)>>) {
         let Some(win) = web_sys::window() else {
             return;
         };
+        let win_for_listener = win.clone();
         let listener = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let cur_x = win_for_listener.scroll_x().unwrap_or(0.0);
+            let cur_y = win_for_listener.scroll_y().unwrap_or(0.0);
+            let (last_x, last_y) = last_scroll.get();
+            let dx = cur_x - last_x;
+            let dy = cur_y - last_y;
+            last_scroll.set((cur_x, cur_y));
+
             if !matches!(*ctx.state.peek(), DragState::Dragging { .. }) {
                 return;
             }
-            // Skip if this scroll was caused by the RAF loop's scrollBy.
-            if *ctx.raf_scrolling.peek() {
+            if dx == 0.0 && dy == 0.0 {
                 return;
             }
-            // Call remeasure_all directly (not request_remeasure) so the
-            // short-circuit check works immediately: if the RAF loop
-            // already measured this frame, no rects will have changed
-            // and remeasure_all returns without notifying subscribers.
-            ctx.remeasure_all();
+
+            ctx.shift_droppable_rects(-dx, -dy);
+
             let DragState::Dragging { start, current, .. } = *ctx.state.peek() else {
                 return;
             };
@@ -117,7 +135,7 @@ mod imp {
         listener.forget();
     }
 
-    fn start_loop(mut ctx: DndContext, generation: &Rc<Cell<u64>>) {
+    fn start_loop(ctx: DndContext, generation: &Rc<Cell<u64>>) {
         let Some(win) = web_sys::window() else {
             return;
         };
@@ -154,23 +172,11 @@ mod imp {
             let v = scroll_velocity(current, viewport_rect(&win_for_cb), config);
 
             if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
-                // Guard: suppress the scroll listener while we do our
-                // own scrollBy + remeasure + update_over sequence.
-                ctx.raf_scrolling.set(true);
+                // Only `scrollBy` here — the window `scroll` listener
+                // catches the resulting event (and any user-initiated
+                // scroll) and is the single source of truth for
+                // shifting droppable rects and re-running collision.
                 win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
-
-                // Directly remeasure and update collision — this is
-                // synchronous, so the guard is still active and the
-                // scroll listener (which may fire synchronously from
-                // scrollBy in some browsers) is suppressed.
-                ctx.remeasure_all();
-                let DragState::Dragging { start, .. } = *ctx.state.peek() else {
-                    ctx.raf_scrolling.set(false);
-                    return;
-                };
-                let effective = ctx.effective_point(start, current);
-                ctx.update_over(effective);
-                ctx.raf_scrolling.set(false);
             }
 
             // Schedule the next tick while still dragging.

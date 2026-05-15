@@ -272,14 +272,48 @@ impl DndContext {
     }
 
     /// Ask all live `use_droppable` instances to re-measure their bounding
-    /// rects on the next reactive tick. Called by the auto-scroll loop
-    /// after a programmatic `scrollBy`, and by the window scroll
-    /// listener on user-initiated scrolls (wheel, trackpad, scrollbar)
-    /// so droppable rects stay accurate when the page moves under the
-    /// cursor mid-drag.
-    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    /// rects on the next reactive tick. Reserved for layout changes
+    /// that aren't purely scroll-driven (e.g. external resize). The
+    /// auto-scroll path and the window scroll listener prefer
+    /// [`Self::shift_droppable_rects`] because mid-drag `getBoundingClientRect`
+    /// returns *transform-included* rects, and our drop-preview applies
+    /// transforms — measuring then would feed the transform back into
+    /// the registry, producing a flicker loop.
+    ///
+    /// Currently no internal caller subscribes to `measurement_tick`
+    /// (the previous mid-drag remeasure effect was the source of the
+    /// flicker bug). Kept available so user code with custom
+    /// `use_droppable` wrappers can plug in their own remeasure
+    /// trigger.
+    #[allow(dead_code)]
     pub(crate) fn request_remeasure(self) {
         self.measurement_tick.update(|t| *t = t.wrapping_add(1));
+    }
+
+    /// Translate every rect in the droppable registry by `(dx, dy)`.
+    ///
+    /// Called by the auto-scroll RAF loop after `window.scrollBy(...)`
+    /// and by the window `scroll` listener after a user-initiated
+    /// scroll (wheel, trackpad, scrollbar). The shift is mathematically
+    /// equivalent to a remeasure for the *pure scroll* case but, unlike
+    /// `getBoundingClientRect`, it ignores any CSS transform currently
+    /// applied to the element. That matters because the drop-preview
+    /// applies a `transform: translate(...)` to displaced cards: a
+    /// post-scroll remeasure would capture the **transformed** position
+    /// and `update_over` would then report `None`, the transform would
+    /// clear, the cursor would be over the un-transformed card again,
+    /// and the cycle would repeat at frame rate.
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
+    pub(crate) fn shift_droppable_rects(self, dx: f64, dy: f64) {
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
+        self.droppables.update(|map| {
+            for rect in map.values_mut() {
+                rect.x += dx;
+                rect.y += dy;
+            }
+        });
     }
 }
 

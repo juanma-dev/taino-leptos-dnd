@@ -52,7 +52,11 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
-        install_scroll_listener(ctx);
+        // Shared scroll position tracker. The scroll listener computes
+        // the delta from this value on each event and updates it.
+        let last_scroll = Rc::new(Cell::new(read_window_scroll()));
+
+        install_scroll_listener(ctx, last_scroll);
 
         // Generation counter: bumped every time `start_loop` is called.
         // Each RAF closure captures the generation it was created at and
@@ -76,22 +80,47 @@ mod imp {
         });
     }
 
-    /// Install a window `scroll` listener that, while we're dragging,
-    /// asks every droppable to re-measure and re-runs collision
-    /// detection at the (unchanged) pointer position. Fires for both
-    /// programmatic scrolls from the RAF loop and user-initiated
-    /// scrolls (wheel, trackpad, scrollbar) — the latter were the
-    /// case that broke before this listener existed, since nothing
-    /// else triggered a remeasure between `pointermove` events.
-    fn install_scroll_listener(ctx: DndContext) {
+    fn read_window_scroll() -> (f64, f64) {
+        web_sys::window()
+            .map_or((0.0, 0.0), |w| (w.scroll_x().unwrap_or(0.0), w.scroll_y().unwrap_or(0.0)))
+    }
+
+    /// Install a window `scroll` listener that handles **all** scrolls
+    /// while dragging — both the programmatic ones produced by the RAF
+    /// loop's `scrollBy` and user-initiated ones (wheel, trackpad,
+    /// scrollbar). On each event it computes the scroll delta against
+    /// the last observed position and applies it to the droppable
+    /// registry via `shift_droppable_rects`, then re-runs collision at
+    /// the unchanged pointer position.
+    ///
+    /// Shift (instead of `getBoundingClientRect` remeasure) is the key
+    /// detail: a remeasure mid-drag would capture each card's
+    /// `transform: translate(...)` from the drop-preview, feeding the
+    /// transform back into the registry and producing a flicker loop.
+    fn install_scroll_listener(ctx: DndContext, last_scroll: Rc<Cell<(f64, f64)>>) {
         let Some(win) = web_sys::window() else {
             return;
         };
+        let win_for_listener = win.clone();
         let listener = Closure::wrap(Box::new(move |_: web_sys::Event| {
+            let cur_x = win_for_listener.scroll_x().unwrap_or(0.0);
+            let cur_y = win_for_listener.scroll_y().unwrap_or(0.0);
+            let (last_x, last_y) = last_scroll.get();
+            let dx = cur_x - last_x;
+            let dy = cur_y - last_y;
+            last_scroll.set((cur_x, cur_y));
+
             if !matches!(ctx.state.get_untracked(), DragState::Dragging { .. }) {
                 return;
             }
-            ctx.request_remeasure();
+            if dx == 0.0 && dy == 0.0 {
+                return;
+            }
+
+            // Page scrolled by (dx, dy): in viewport coordinates every
+            // rect's origin shifted by -(dx, dy).
+            ctx.shift_droppable_rects(-dx, -dy);
+
             let DragState::Dragging { start, current, .. } = ctx.state.get_untracked() else {
                 return;
             };
@@ -142,16 +171,12 @@ mod imp {
             let v = scroll_velocity(current, viewport_rect, config);
 
             if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
+                // Only `scrollBy` here — the window `scroll` listener
+                // installed alongside this loop catches the resulting
+                // event (and any user-initiated scroll) and is the
+                // single source of truth for shifting droppable rects
+                // and re-running collision detection.
                 win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
-                ctx.request_remeasure();
-                // Re-run collision at the (unchanged) pointer position so the
-                // highlighted droppable updates as droppables move under the
-                // cursor.
-                let DragState::Dragging { start, .. } = ctx.state.get_untracked() else {
-                    return;
-                };
-                let effective = ctx.effective_point(start, current);
-                ctx.update_over(effective);
             }
 
             // Schedule the next tick while still dragging.

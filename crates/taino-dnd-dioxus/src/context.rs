@@ -61,15 +61,6 @@ pub struct DndContext {
     /// avoiding the O(N²) cascading notification problem that occurs
     /// when N individual effects each write one-by-one.
     pub(crate) elements: Signal<HashMap<DroppableId, Rc<MountedData>>>,
-    /// Guard flag: `true` while the RAF auto-scroll loop is executing
-    /// its `scrollBy` + remeasure + `update_over` sequence. The window
-    /// `scroll` listener checks this and skips its own (duplicate) call
-    /// when the scroll was caused by the RAF loop's `scrollBy`.
-    ///
-    /// Only read inside `#[cfg(target_arch = "wasm32")]` blocks in
-    /// `autoscroll.rs`, so native `cargo check` sees it as unread.
-    #[allow(dead_code)]
-    pub(crate) raf_scrolling: Signal<bool>,
     /// Deduped memo of the currently dragged item's droppable ID.
     /// Changes only on drag start/end, NOT on every `pointermove`.
     /// Displacement memos subscribe to this instead of raw `state`,
@@ -173,6 +164,28 @@ impl DndContext {
         });
     }
 
+    /// Translate every rect in the droppable registry by `(dx, dy)`.
+    ///
+    /// Used by the auto-scroll RAF loop and the window `scroll`
+    /// listener as a transform-safe alternative to [`Self::remeasure_all`]:
+    /// `getBoundingClientRect` includes the drop-preview CSS transform,
+    /// so a mid-drag remeasure would feed the transform back into the
+    /// registry and produce a flicker loop. A pure scroll only changes
+    /// each rect's origin by the inverse scroll delta — shifting in
+    /// place stays correct without ever observing the transform.
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn shift_droppable_rects(mut self, dx: f64, dy: f64) {
+        if dx == 0.0 && dy == 0.0 {
+            return;
+        }
+        self.droppables.with_mut(|map| {
+            for rect in map.values_mut() {
+                rect.x += dx;
+                rect.y += dy;
+            }
+        });
+    }
+
     /// Re-measure **all** registered droppable elements and write the
     /// updated rects into `self.droppables` in one batch. This avoids
     /// the O(N²) cascade that happens when N individual effects each
@@ -182,6 +195,12 @@ impl DndContext {
     /// **Only notifies subscribers when at least one rect actually
     /// changed.** `with_mut` in Dioxus always triggers a notification,
     /// so we peek first to decide whether the write is necessary.
+    ///
+    /// Called only from the pickup-time `is_active` effect — never
+    /// from the scroll path, since `getBoundingClientRect` returns
+    /// transform-included rects and mid-drag the drop preview applies
+    /// CSS transforms. The scroll path uses
+    /// [`Self::shift_droppable_rects`] instead.
     #[cfg(target_arch = "wasm32")]
     pub(crate) fn remeasure_all(mut self) {
         let elements = self.elements.peek().clone();
@@ -358,7 +377,6 @@ pub fn provide_dnd_context() -> DndContext {
     let restrict_container = use_signal::<Option<Rect>>(|| None);
     let auto_scroll = use_signal(AutoScrollConfig::default);
     let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
-    let raf_scrolling = use_signal(|| false);
     // Deduped dragged-droppable memo: only changes on drag start/end,
     // NOT on every pointermove. Displacement memos subscribe to this
     // instead of raw `state` to avoid N re-evaluations per move.
@@ -377,7 +395,6 @@ pub fn provide_dnd_context() -> DndContext {
         restrict_container,
         auto_scroll,
         elements,
-        raf_scrolling,
         dragged_droppable,
     };
     use_context_provider(|| ctx);

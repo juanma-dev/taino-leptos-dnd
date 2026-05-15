@@ -156,21 +156,15 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
             }
         });
 
-        // Re-measure when the auto-scroll loop bumps `measurement_tick`.
-        // After a viewport `scrollBy`, every droppable's viewport-relative
-        // bounding rect has shifted; without this the highlighted target
-        // would lag behind while scrolling.
-        Effect::new(move |_| {
-            ctx.measurement_tick.get();
-            if matches!(ctx.state.get_untracked(), DragState::Dragging { .. }) {
-                if let Some(el) = node_ref.get_untracked() {
-                    if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
-                        let rect = crate::dom::bounding_rect(el);
-                        ctx.upsert_droppable(id, rect);
-                    }
-                }
-            }
-        });
+        // Scroll-driven re-measurement is handled by
+        // `DndContext::shift_droppable_rects` from the auto-scroll RAF
+        // and the window `scroll` listener. We intentionally do **not**
+        // subscribe to `measurement_tick` here: a mid-drag
+        // `getBoundingClientRect` returns the rect *including* the
+        // drop-preview CSS transform, so feeding that back into the
+        // registry would produce a flicker loop (transform applies →
+        // measure → registry shifts → `update_over` reports no
+        // containment → transform clears → repeat).
     }
 
     on_cleanup(move || {
