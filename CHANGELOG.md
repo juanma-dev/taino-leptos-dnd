@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-05-15
+### Fixed
+- **Dioxus auto-scroll velocity decay across many drags.** The window
+  `scroll` event listener and the RAF generation counter were
+  installed inside `provide_dnd_context` without a hook guard, so
+  Dioxus's re-execution of the host component on every signal change
+  attached a fresh `forget()`-ed listener per render. After ~20 drops
+  the page was running 20+ scroll listeners per event, each calling
+  `remeasure_all` + `update_over`, producing a linear slowdown of the
+  auto-scroll loop (mouse-wheel scrolling, which fires few events,
+  stayed fast). Wrapping the listener install in `use_hook` makes it
+  run exactly once per component instance.
+- **Dioxus drop-preview flicker near viewport edges.** `bounding_rect`
+  now subtracts the element's computed `transform: translate(...)`
+  before returning. Without this, mid-drag `getBoundingClientRect`
+  captures the drop-preview transform and feeds it back into the
+  registry, producing a flicker loop. Required enabling the
+  `CssStyleDeclaration` feature on `web-sys`.
+
 ## [0.4.0] - 2026-05-14
 ### Added
 - **Stage 3 begins**: new `taino-dnd-dioxus` crate. First slice ships

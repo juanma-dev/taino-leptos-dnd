@@ -55,14 +55,18 @@ mod imp {
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
     pub(super) fn install(ctx: DndContext) {
-        install_scroll_listener(ctx);
-
-        // Generation counter: bumped every time `start_loop` is called.
-        // Each RAF closure captures the generation it was created at and
-        // self-terminates if a newer generation exists — this prevents
-        // loop accumulation when a new drag starts before the previous
-        // loop has had a chance to see the idle transition.
-        let generation = Rc::new(Cell::new(0_u64));
+        // `provide_dnd_context` runs on every render of its host
+        // component (Dioxus components re-execute when their reactive
+        // state changes). The window scroll listener and the RAF
+        // generation counter must therefore be installed **once per
+        // component instance**, not once per render — without
+        // `use_hook` we'd attach a fresh `forget()`-ed scroll listener
+        // on every render, and after a few drags the page would be
+        // running N listeners per scroll event with the cost growing
+        // linearly. Visible as auto-scroll velocity decreasing as more
+        // drops accumulate.
+        use_hook(|| install_scroll_listener(ctx));
+        let generation: Rc<Cell<u64>> = use_hook(|| Rc::new(Cell::new(0_u64)));
 
         // `use_memo` (not a raw read inside `use_effect`) is
         // load-bearing: every `pointermove` updates `state.current`, so
