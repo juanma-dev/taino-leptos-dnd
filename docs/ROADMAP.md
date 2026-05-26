@@ -166,7 +166,8 @@ framework. Set up the pattern so a third (Yew) is trivial.
   end-to-end (pointer, touch, keyboard), at full parity with the Leptos
   bindings.
 - [x] `taino-dnd-core` has **zero** `leptos`, `dioxus`, or framework deps.
-- [ ] Published `0.4.0` of all three crates on crates.io.
+- [x] Published all three crates on crates.io with synchronized versions
+  (`0.4.5`, 2026-05-26).
 
 ---
 
