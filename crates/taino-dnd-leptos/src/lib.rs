@@ -65,7 +65,9 @@ pub use flip::{use_flip, use_flip_with, FlipConfig};
 pub use overlay::DragOverlay;
 // Re-exports for ergonomics: configuring modifiers and auto-scroll shouldn't
 // require an extra dependency on `taino-dnd-core`.
-pub use taino_dnd_core::{AutoScrollConfig, Axis, Modifier, ModifierContext, Vector};
+pub use taino_dnd_core::{
+    default_announcement, AnnounceEvent, AutoScrollConfig, Axis, Modifier, ModifierContext, Vector,
+};
 
 #[cfg(test)]
 mod tests {

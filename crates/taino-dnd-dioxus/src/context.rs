@@ -9,9 +9,14 @@ use std::rc::Rc;
 
 use dioxus::prelude::*;
 use taino_dnd_core::{
-    apply_chain, pointer_within, spatial_neighbor, AutoScrollConfig, Direction, DragState,
-    DraggableId, DroppableId, Modifier, ModifierContext, Point, Rect, Vector,
+    apply_chain, default_announcement, pointer_within, spatial_neighbor, AnnounceEvent,
+    AutoScrollConfig, Direction, DragState, DraggableId, DroppableId, Modifier, ModifierContext,
+    Point, Rect, Vector,
 };
+
+/// Stored screen-reader announcement formatter. `Rc` (not `Arc`) since Dioxus
+/// signals are single-threaded — no `Send + Sync` bound on user closures.
+type Formatter = Rc<dyn Fn(&AnnounceEvent) -> String>;
 
 /// Shared drag-and-drop state installed at the root of a region that
 /// uses `taino-dnd-dioxus`.
@@ -49,6 +54,10 @@ pub struct DndContext {
     ///
     /// [`DragOverlay`]: crate::DragOverlay
     pub(crate) drop_target: Signal<Option<Point>>,
+    /// Formatter turning an [`AnnounceEvent`] into the screen-reader string.
+    /// Defaults to [`default_announcement`] (raw numeric ids); replace it with
+    /// [`DndContext::set_announcement_formatter`] for human-readable labels.
+    pub(crate) announcement_formatter: Signal<Formatter>,
     /// Ordered list of [`Modifier`]s applied to the drag displacement
     /// before it's used for the visual transform and for collision
     /// detection. Empty by default. Mutate with
@@ -324,6 +333,36 @@ impl DndContext {
         self.announcement.set(message.into());
     }
 
+    /// Install a custom screen-reader announcement formatter.
+    ///
+    /// The binding calls this for every drag-lifecycle [`AnnounceEvent`]
+    /// (pick up / move / drop / cancel) and pushes the returned string into the
+    /// `aria-live` region. The default formatter uses raw numeric ids; override
+    /// it to speak human-readable labels (the closure typically captures your
+    /// items signal to map ids → labels).
+    ///
+    /// ```ignore
+    /// use taino_dnd_dioxus::{provide_dnd_context, AnnounceEvent};
+    ///
+    /// let ctx = provide_dnd_context();
+    /// ctx.set_announcement_formatter(|ev| match ev {
+    ///     AnnounceEvent::PickedUp { draggable } => format!("Picked up card {}", draggable.0),
+    ///     other => taino_dnd_dioxus::default_announcement(other),
+    /// });
+    /// ```
+    pub fn set_announcement_formatter(
+        mut self,
+        formatter: impl Fn(&AnnounceEvent) -> String + 'static,
+    ) {
+        self.announcement_formatter.set(Rc::new(formatter));
+    }
+
+    /// Format `event` with the current formatter and push it to the live region.
+    pub(crate) fn announce_event(self, event: AnnounceEvent) {
+        let formatter = self.announcement_formatter.peek().clone();
+        self.announce(formatter(&event));
+    }
+
     /// Append a single [`Modifier`] to the chain.
     pub fn push_modifier(mut self, modifier: Modifier) {
         self.modifiers.with_mut(|ms| ms.push(modifier));
@@ -405,6 +444,8 @@ pub fn provide_dnd_context() -> DndContext {
     let announcement = use_signal(String::new);
     let dragged_element_rect = use_signal::<Option<Rect>>(|| None);
     let drop_target = use_signal::<Option<Point>>(|| None);
+    let announcement_formatter =
+        use_signal::<Formatter>(|| Rc::new(default_announcement) as Formatter);
     let modifiers = use_signal::<Vec<Modifier>>(Vec::new);
     let restrict_container = use_signal::<Option<Rect>>(|| None);
     let auto_scroll = use_signal(AutoScrollConfig::default);
@@ -425,6 +466,7 @@ pub fn provide_dnd_context() -> DndContext {
         announcement,
         dragged_element_rect,
         drop_target,
+        announcement_formatter,
         modifiers,
         restrict_container,
         auto_scroll,

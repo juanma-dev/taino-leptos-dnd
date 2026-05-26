@@ -67,5 +67,6 @@ pub use overlay::DragOverlay;
 // Re-exports so user code doesn't need a separate `taino-dnd-core` dep
 // for the value types it'll commonly reach for.
 pub use taino_dnd_core::{
-    AutoScrollConfig, Axis, DragState, DraggableId, DroppableId, Modifier, ModifierContext, Vector,
+    default_announcement, AnnounceEvent, AutoScrollConfig, Axis, DragState, DraggableId,
+    DroppableId, Modifier, ModifierContext, Vector,
 };

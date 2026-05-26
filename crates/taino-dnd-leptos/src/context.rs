@@ -4,12 +4,19 @@
 //! available via Leptos's context API. Install one with [`provide_dnd_context`].
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use leptos::prelude::*;
 use taino_dnd_core::{
-    apply_chain, pointer_within, spatial_neighbor, AutoScrollConfig, Direction, DragState,
-    DraggableId, DroppableId, Modifier, ModifierContext, Point, Rect, Vector,
+    apply_chain, default_announcement, pointer_within, spatial_neighbor, AnnounceEvent,
+    AutoScrollConfig, Direction, DragState, DraggableId, DroppableId, Modifier, ModifierContext,
+    Point, Rect, Vector,
 };
+
+/// Stored screen-reader announcement formatter. `Send + Sync` so it fits the
+/// default (sync) `StoredValue` storage; a closure capturing only Leptos
+/// signals and `Send + Sync` data satisfies this.
+type Formatter = Arc<dyn Fn(&AnnounceEvent) -> String + Send + Sync>;
 
 /// Shared drag-and-drop state installed at the root of a region that uses
 /// `taino-dnd-leptos`.
@@ -62,6 +69,10 @@ pub struct DndContext {
     ///
     /// [`DragOverlay`]: crate::DragOverlay
     pub(crate) drop_target: RwSignal<Option<Point>>,
+    /// Formatter turning an [`AnnounceEvent`] into the screen-reader string.
+    /// Defaults to [`default_announcement`] (raw numeric ids); replace it with
+    /// [`DndContext::set_announcement_formatter`] to emit human-readable labels.
+    pub(crate) announcement_formatter: StoredValue<Formatter>,
 }
 
 /// Duration of the drop-settle overlay animation, in milliseconds. The
@@ -96,6 +107,7 @@ impl Default for DndContext {
             restrict_container: RwSignal::new(None),
             dragged_element_rect: RwSignal::new(None),
             drop_target: RwSignal::new(None),
+            announcement_formatter: StoredValue::new(Arc::new(default_announcement) as Formatter),
         }
     }
 }
@@ -243,6 +255,39 @@ impl DndContext {
                 std::time::Duration::from_millis(50),
             );
         }
+    }
+
+    /// Install a custom screen-reader announcement formatter.
+    ///
+    /// The bindings call this for every drag-lifecycle [`AnnounceEvent`]
+    /// (pick up / move / drop / cancel) and push the returned string into the
+    /// `aria-live` region. The default formatter uses raw numeric ids; override
+    /// it to speak human-readable labels. The closure typically captures your
+    /// items signal to map ids → labels, and must be `Send + Sync` (a closure
+    /// over Leptos signals and `Send + Sync` data is).
+    ///
+    /// ```no_run
+    /// use leptos::prelude::*;
+    /// use taino_dnd_leptos::provide_dnd_context;
+    /// use taino_dnd_core::AnnounceEvent;
+    ///
+    /// let ctx = provide_dnd_context();
+    /// ctx.set_announcement_formatter(|ev| match ev {
+    ///     AnnounceEvent::PickedUp { draggable } => format!("Picked up card {}", draggable.0),
+    ///     other => taino_dnd_core::default_announcement(other),
+    /// });
+    /// ```
+    pub fn set_announcement_formatter(
+        self,
+        formatter: impl Fn(&AnnounceEvent) -> String + Send + Sync + 'static,
+    ) {
+        self.announcement_formatter.set_value(Arc::new(formatter));
+    }
+
+    /// Format `event` with the current formatter and push it to the live region.
+    pub(crate) fn announce_event(self, event: AnnounceEvent) {
+        let msg = self.announcement_formatter.with_value(|f| f(&event));
+        self.announce(msg);
     }
 
     /// Append a single [`Modifier`] to the chain.

@@ -16,6 +16,7 @@
 #![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod announce;
 pub mod autoscroll;
 pub mod collision;
 pub mod displacement;
@@ -24,6 +25,7 @@ pub mod geometry;
 pub mod modifier;
 pub mod state;
 
+pub use announce::{default_announcement, AnnounceEvent};
 pub use autoscroll::{scroll_velocity, AutoScrollConfig};
 pub use collision::{closest_center, pointer_within, spatial_neighbor, Direction};
 pub use displacement::{detect_axis, live_displacements};

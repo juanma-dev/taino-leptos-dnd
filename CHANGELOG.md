@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- **Conditional drag/drop (`disabled`), both bindings.** New
+  `use_draggable_with(id, disabled)` and `use_droppable_with(id, disabled)`
+  take a reactive `Signal<bool>`. A disabled draggable can't be picked up
+  (pointer or keyboard); a disabled droppable is removed from the registry, so
+  it's never the `over` target, never shifts in the drop-preview, and can't
+  receive a drop — flipping the flag re-registers it without a remount.
+  `UseDraggable` / `UseDroppable` gain a `disabled` field for `aria-disabled` /
+  styling. No core change. The `sortable-list` examples lock item #1 to show it.
+- **Substitutable screen-reader announcements.** New
+  `taino_dnd_core::AnnounceEvent` (PickedUp / MovedOver / Dropped / Cancelled)
+  and `default_announcement` formatter. `DndContext::set_announcement_formatter`
+  (both bindings) installs an app-provided `Fn(&AnnounceEvent) -> String`, so a
+  screen reader can hear "Write kanban example moved to the end of Done"
+  instead of "Item 1 moved over target 10002". The default keeps the previous
+  numeric strings. Both `kanban` examples wire a label-resolving formatter —
+  closing out the semantic-labels follow-up tracked in `docs/ROADMAP.md`.
+
 ## [0.4.5] - 2026-05-26
 ### Added
 - **Scroll-container auto-scroll (both bindings).** Auto-scroll now drives

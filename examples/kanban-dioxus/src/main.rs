@@ -23,8 +23,8 @@
 
 use dioxus::prelude::*;
 use taino_dnd_dioxus::{
-    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, use_flip, DndAnnouncer,
-    DragOverlay, DragState, DraggableId, DroppableId,
+    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, use_flip, AnnounceEvent,
+    DndAnnouncer, DragOverlay, DragState, DraggableId, DroppableId,
 };
 
 const COLUMN_TAIL_BASE: u64 = 10_000;
@@ -77,6 +77,12 @@ fn App() -> Element {
             },
         ]
     });
+
+    // Speak human-readable labels instead of the default numeric ids — the
+    // `announcement_formatter` follow-up from docs/ROADMAP.md. A screen reader
+    // now hears "Write kanban example moved to the end of Done" rather than
+    // "Item 1 moved over target 10002".
+    ctx.set_announcement_formatter(move |ev| announce(columns, ev));
 
     // React to a successful drop: move `draggable` to the slot described by
     // `over`. `take_last_drop` reads, subscribes, and clears across two
@@ -256,4 +262,40 @@ fn locate(cols: &[Column], id: u64) -> Option<(usize, usize)> {
 
 fn card(id: u64, title: &str) -> Card {
     Card { id, title: title.to_owned() }
+}
+
+/// Human-readable screen-reader text for a drag-lifecycle event, resolving
+/// numeric ids to card titles and column names.
+fn announce(columns: Signal<Vec<Column>>, ev: &AnnounceEvent) -> String {
+    let card_title = |id: u64| {
+        columns
+            .peek()
+            .iter()
+            .flat_map(|c| c.cards.iter())
+            .find(|c| c.id == id)
+            .map(|c| c.title.clone())
+    };
+    let title = |id: u64| card_title(id).unwrap_or_else(|| format!("item {id}"));
+    let target = |over: Option<DroppableId>| -> String {
+        let Some(o) = over else { return "no column".to_owned() };
+        if let Some(col) = column_idx_from_tail(o) {
+            return columns
+                .peek()
+                .get(col)
+                .map_or_else(|| "a column".to_owned(), |c| format!("the end of {}", c.title));
+        }
+        card_title(o.0).map_or_else(|| "a card".to_owned(), |t| format!("before \"{t}\""))
+    };
+    match *ev {
+        AnnounceEvent::PickedUp { draggable } => format!("Picked up \"{}\".", title(draggable.0)),
+        AnnounceEvent::MovedOver { draggable, over } => {
+            format!("\"{}\" moved to {}.", title(draggable.0), target(over))
+        }
+        AnnounceEvent::Dropped { draggable, over } => {
+            format!("Dropped \"{}\" at {}.", title(draggable.0), target(over))
+        }
+        AnnounceEvent::Cancelled { draggable } => {
+            format!("Cancelled dragging \"{}\".", title(draggable.0))
+        }
+    }
 }

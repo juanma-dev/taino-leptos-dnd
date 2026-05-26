@@ -10,8 +10,8 @@ use std::rc::Rc;
 use dioxus::html::input_data::MouseButton;
 use dioxus::prelude::*;
 use taino_dnd_core::{
-    transition, Direction, DragEvent, DragState, DraggableId, DroppableId, Point, Rect,
-    DEFAULT_DRAG_THRESHOLD,
+    transition, AnnounceEvent, Direction, DragEvent, DragState, DraggableId, DroppableId, Point,
+    Rect, DEFAULT_DRAG_THRESHOLD,
 };
 
 use crate::context::{use_dnd_context, DndContext, DropResult};
@@ -191,11 +191,8 @@ impl UseDraggable {
                 if matches!(state, DragState::Dropping { .. }) {
                     self.ctx.settle_drop(Some(to));
                 }
-                let msg = target.map_or_else(
-                    || format!("Dropped item {} outside any target.", self.id.0),
-                    |t| format!("Dropped item {} on target {}.", self.id.0, t.0),
-                );
-                self.ctx.announce(msg);
+                self.ctx
+                    .announce_event(AnnounceEvent::Dropped { draggable: self.id, over: target });
             }
             return;
         }
@@ -206,7 +203,7 @@ impl UseDraggable {
             if let Ok(state) = transition(current, DragEvent::Cancel, DEFAULT_DRAG_THRESHOLD) {
                 self.ctx.state.set(state);
                 self.ctx.over.set(None);
-                self.ctx.announce(format!("Cancelled drag of item {}.", self.id.0));
+                self.ctx.announce_event(AnnounceEvent::Cancelled { draggable: self.id });
             }
             return;
         }
@@ -215,7 +212,10 @@ impl UseDraggable {
         if let Some(dir) = direction_for_key(&key) {
             ev.prevent_default();
             if let Some(new_over) = self.ctx.keyboard_step(dir) {
-                self.ctx.announce(format!("Item {} moved over target {}.", self.id.0, new_over.0));
+                self.ctx.announce_event(AnnounceEvent::MovedOver {
+                    draggable: self.id,
+                    over: Some(new_over),
+                });
             }
         }
     }
@@ -267,10 +267,7 @@ impl UseDraggable {
             // Default `over` to the draggable's own droppable id if
             // registered, so the user has a target to navigate from.
             self.ctx.over.set(Some(DroppableId(self.id.0)));
-            self.ctx.announce(format!(
-                "Picked up item {}. Use arrow keys to move, space or enter to drop, escape to cancel.",
-                self.id.0
-            ));
+            self.ctx.announce_event(AnnounceEvent::PickedUp { draggable: self.id });
         }
     }
 
