@@ -116,22 +116,14 @@ A non-trivial Kanban example must work, including accessibility.
 
 ### Tracked follow-ups (Stage 2 polish, not gating)
 
-- **Live drop-preview reorder.** While a drag is in progress, neighbors of the
-  hovered slot should shift to *show* the post-drop layout before the user
-  releases (the dnd-kit "transition-during-drag" feel). FLIP currently runs
-  only on the post-drop settle, so the preview is missing. Likely
-  implementation: drive a virtual "displaced index" off the `over` signal,
-  apply it as an inline `transform` to neighbors. Doesn't block the Stage 2
-  acceptance gates above.
-- **Semantic labels in screen-reader announcements.** The default
-  announcements are wired with raw numeric ids ("Item 1 moved over target
-  10000"). End users of an assistive technology need human-readable
-  labels ("Item Write kanban example moved over End of To do column").
-  Options being weighed: (a) carry an optional `label: Cow<'static, str>`
-  next to each `DraggableId` / `DroppableId` registration, (b) accept a
-  `DndContext::announcement_formatter: impl Fn(AnnounceEvent) -> String`
-  callback so the app fully owns the strings, (c) both. (b) is cheaper
-  and composes better with i18n — likely the path.
+- ✅ **Live drop-preview reorder.** Neighbors of the hovered slot shift mid-drag
+  to show the post-drop layout (`use_droppable`'s `displacement` +
+  `drop_preview_style`). Shipped in both bindings.
+- ✅ **Semantic labels in screen-reader announcements.** Took option (b): a
+  `DndContext::set_announcement_formatter(Fn(&AnnounceEvent) -> String)`
+  callback so the app owns the strings (composes with i18n, no label storage in
+  core). Default keeps the numeric strings. Wired in both `kanban` examples.
+  Shipped in `0.4.6`.
 
 ---
 
@@ -168,6 +160,27 @@ framework. Set up the pattern so a third (Yew) is trivial.
 - [x] `taino-dnd-core` has **zero** `leptos`, `dioxus`, or framework deps.
 - [x] Published all three crates on crates.io with synchronized versions
   (`0.4.5`, 2026-05-26).
+
+---
+
+## Future work
+
+Tracked, not yet scheduled. The library is feature-comparable to the *good
+parts* of `react-beautiful-dnd`/`dnd-kit` as of `0.4.6` (pointer + keyboard +
+touch, a11y announcements, FLIP + drop-settle animations, modifiers, overlay,
+scroll-container auto-scroll, conditional drag/drop). What's left:
+
+- **Browser-level interaction tests.** The unit suite covers the core logic and
+  the bindings' reactive hook layer (collision, keyboard nav, announcements),
+  but not real synthetic pointer/keyboard event dispatch against a live DOM.
+  Those need a headless browser runner (`wasm-pack test --chrome` with
+  chromedriver, or `wasm-bindgen-test` in CI). This is the next natural
+  maturity step — it's what turns "the logic is right" into "the whole drag
+  works end-to-end under test."
+- **Multi-drag** (select several items, drag them as a group) and
+  **combining / merge** (drop one item *onto* another to nest/merge rather than
+  reorder). Larger-scope interaction models, deliberately out of scope so far;
+  revisit once the test harness above is in place.
 
 ---
 
