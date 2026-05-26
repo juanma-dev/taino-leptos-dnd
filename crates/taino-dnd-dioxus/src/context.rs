@@ -175,7 +175,9 @@ impl DndContext {
     }
 
     /// Store the element handle so the centralized re-measure effect
-    /// can reach it. Called from `use_droppable`'s `on_mounted`.
+    /// can reach it. Called from the registration effect in `use_droppable_with`
+    /// (wasm only — native never measures).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn register_element(mut self, id: DroppableId, data: Rc<MountedData>) {
         self.elements.with_mut(|map| {
             map.insert(id, data);

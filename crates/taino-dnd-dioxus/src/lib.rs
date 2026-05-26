@@ -59,8 +59,8 @@ mod overlay;
 pub use announcer::DndAnnouncer;
 pub use container::{use_drag_container, UseDragContainer};
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
-pub use draggable::{use_draggable, UseDraggable};
-pub use droppable::{use_droppable, UseDroppable};
+pub use draggable::{use_draggable, use_draggable_with, UseDraggable};
+pub use droppable::{use_droppable, use_droppable_with, UseDroppable};
 pub use flip::{use_flip, use_flip_with, FlipConfig};
 pub use overlay::DragOverlay;
 

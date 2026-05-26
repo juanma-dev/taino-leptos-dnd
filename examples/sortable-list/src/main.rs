@@ -9,7 +9,8 @@
 use leptos::prelude::*;
 use taino_dnd_core::{DraggableId, DroppableId};
 use taino_dnd_leptos::{
-    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
+    provide_dnd_context, use_dnd_context, use_draggable_with, use_droppable, DndAnnouncer,
+    DragOverlay,
 };
 
 #[derive(Clone)]
@@ -69,7 +70,9 @@ fn App() -> impl IntoView {
 #[component]
 fn Row(item: Item) -> impl IntoView {
     let id = item.id;
-    let d = use_draggable(DraggableId(id));
+    // Item #1 is locked (disabled) to demonstrate conditional dragging.
+    let locked = id == 1;
+    let d = use_draggable_with(DraggableId(id), Signal::derive(move || locked));
     let z = use_droppable(DroppableId(id));
     let label = item.label.clone();
 
@@ -83,10 +86,12 @@ fn Row(item: Item) -> impl IntoView {
             <div
                 class="item"
                 class:dragging=move || d.is_dragging.get()
+                class:locked=move || d.disabled.get()
                 node_ref=d.node_ref
                 tabindex="0"
                 role="button"
                 aria-roledescription="draggable item"
+                aria-disabled=move || d.disabled.get().to_string()
                 aria-label=label
                 on:pointerdown=move |e| d.on_pointer_down(&e)
                 on:pointermove=move |e| d.on_pointer_move(&e)

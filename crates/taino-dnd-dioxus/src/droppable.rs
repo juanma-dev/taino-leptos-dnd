@@ -28,6 +28,11 @@ pub struct UseDroppable {
     /// Wire with [`Self::drop_preview_style`] for the typical pattern,
     /// or read raw for full control of the transition.
     pub displacement: Memo<(f64, f64)>,
+    /// Reactive disabled flag. While `true`, this droppable is removed from
+    /// the registry: it's never reported as `over`, never participates in the
+    /// drop-preview, and can't receive a drop. Always `false` for
+    /// [`use_droppable`]; set via [`use_droppable_with`].
+    pub disabled: Signal<bool>,
     #[allow(dead_code)]
     ctx: DndContext,
 }
@@ -39,13 +44,10 @@ impl UseDroppable {
     /// re-measure effect can reach it on subsequent drag-start and
     /// auto-scroll ticks.
     pub fn on_mounted(mut self, ev: Event<MountedData>) {
-        let data = ev.data();
-        #[cfg(target_arch = "wasm32")]
-        if let Some(rect) = crate::dom::bounding_rect_of(&data) {
-            self.ctx.upsert_droppable(self.id, rect);
-        }
-        self.ctx.register_element(self.id, data.clone());
-        self.element.set(Some(data));
+        // Just stash the handle. The registration effect in `use_droppable_with`
+        // (which also reacts to `disabled`) is the single authority that
+        // measures the rect and registers / unregisters the element.
+        self.element.set(Some(ev.data()));
     }
 
     /// Inline CSS for the drop-preview transform.
@@ -96,6 +98,31 @@ impl UseDroppable {
 /// }
 /// ```
 pub fn use_droppable(id: DroppableId) -> UseDroppable {
+    let disabled = use_signal(|| false);
+    use_droppable_with(id, disabled)
+}
+
+/// Like [`use_droppable`], but with a reactive `disabled` flag.
+///
+/// While `disabled` reads `true`, the droppable is pulled from the registry:
+/// it's never reported as `over`, never shifts in the drop-preview, and can't
+/// receive a drop. Flip the signal and it rejoins on the next tick (re-measured
+/// from the DOM). Read it back via [`UseDroppable::disabled`] for styling.
+///
+/// # Example
+///
+/// ```ignore
+/// use dioxus::prelude::*;
+/// use taino_dnd_core::DroppableId;
+/// use taino_dnd_dioxus::use_droppable_with;
+///
+/// fn Zone() -> Element {
+///     let full = use_signal(|| true);
+///     let z = use_droppable_with(DroppableId(9), full);
+///     rsx! { div { onmounted: move |e| z.on_mounted(e), "zone" } }
+/// }
+/// ```
+pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppable {
     let ctx = use_dnd_context();
     let element = use_signal::<Option<Rc<MountedData>>>(|| None);
 
@@ -125,10 +152,30 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         displacements.into_iter().find(|(d, _)| *d == id).map_or((0.0, 0.0), |(_, v)| (v.x, v.y))
     });
 
+    // Registration authority: react to both the mounted element and
+    // `disabled`. When disabled, pull this droppable out of both registries so
+    // collision / preview / re-measure skip it; when enabled (and mounted),
+    // measure and (re-)register it. Replaces the old register-in-`on_mounted`
+    // path so toggling `disabled` is honoured without a remount.
+    #[cfg(target_arch = "wasm32")]
+    use_effect(move || {
+        if *disabled.read() {
+            ctx.remove_droppable(id);
+            ctx.unregister_element(id);
+            return;
+        }
+        if let Some(data) = element.read().clone() {
+            if let Some(rect) = crate::dom::bounding_rect_of(&data) {
+                ctx.upsert_droppable(id, rect);
+            }
+            ctx.register_element(id, data);
+        }
+    });
+
     use_drop(move || {
         ctx.remove_droppable(id);
         ctx.unregister_element(id);
     });
 
-    UseDroppable { id, element, is_over, displacement, ctx }
+    UseDroppable { id, element, is_over, displacement, disabled, ctx }
 }

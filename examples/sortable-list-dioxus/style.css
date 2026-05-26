@@ -85,6 +85,12 @@ p.hint {
   border-style: dashed;
 }
 
+.item.locked {
+  cursor: not-allowed;
+  opacity: 0.55;
+  border-style: dashed;
+}
+
 .overlay-card {
   /* The DragOverlay container is sized to the source card's bounding
      rect; fill it so the preview matches the original card's footprint. */

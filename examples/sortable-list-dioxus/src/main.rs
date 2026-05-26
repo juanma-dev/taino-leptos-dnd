@@ -13,8 +13,8 @@
 
 use dioxus::prelude::*;
 use taino_dnd_dioxus::{
-    provide_dnd_context, use_dnd_context, use_draggable, use_droppable, DndAnnouncer, DragOverlay,
-    DragState, DraggableId, DroppableId,
+    provide_dnd_context, use_dnd_context, use_draggable_with, use_droppable, DndAnnouncer,
+    DragOverlay, DragState, DraggableId, DroppableId,
 };
 
 fn main() {
@@ -63,7 +63,9 @@ fn App() -> Element {
 
 #[component]
 fn Row(id: u64, label: String) -> Element {
-    let d = use_draggable(DraggableId(id));
+    // Item #1 is locked (disabled) to demonstrate conditional dragging.
+    let locked = use_signal(move || id == 1);
+    let d = use_draggable_with(DraggableId(id), locked);
     let z = use_droppable(DroppableId(id));
 
     let row_class =
@@ -71,6 +73,8 @@ fn Row(id: u64, label: String) -> Element {
     let item_class = use_memo(move || {
         if *d.is_dragging.read() {
             "item dragging".to_owned()
+        } else if *d.disabled.read() {
+            "item locked".to_owned()
         } else {
             "item".to_owned()
         }
@@ -93,6 +97,7 @@ fn Row(id: u64, label: String) -> Element {
                 tabindex: "0",
                 role: "button",
                 "aria-roledescription": "draggable item",
+                "aria-disabled": "{d.disabled}",
                 "aria-label": "{label_for_aria}",
                 style: "{d.style_pinned()}",
                 "{label}"

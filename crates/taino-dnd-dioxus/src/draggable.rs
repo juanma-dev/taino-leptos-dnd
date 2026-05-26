@@ -34,6 +34,10 @@ pub struct UseDraggable {
     /// Translation (in CSS pixels) to apply while dragging. `(0.0, 0.0)`
     /// when not dragging.
     pub transform: Memo<(f64, f64)>,
+    /// Reactive disabled flag. While `true`, this draggable can't be picked
+    /// up (pointer or keyboard). Read it to set `aria-disabled` / styling.
+    /// Always `false` for [`use_draggable`]; set via [`use_draggable_with`].
+    pub disabled: Signal<bool>,
     ctx: DndContext,
 }
 
@@ -47,7 +51,7 @@ impl UseDraggable {
     /// `onpointerdown` handler. Starts a `Pressed` state; movement past
     /// the drag threshold promotes it to `Dragging`.
     pub fn on_pointer_down(mut self, ev: Event<PointerData>) {
-        if ev.trigger_button() != Some(MouseButton::Primary) {
+        if ev.trigger_button() != Some(MouseButton::Primary) || *self.disabled.peek() {
             return;
         }
         let coords = ev.client_coordinates();
@@ -165,6 +169,9 @@ impl UseDraggable {
 
         // Pickup path: Space/Enter while not dragging.
         if !is_dragging_me && matches!(current, DragState::Idle) && is_activation(&key) {
+            if *self.disabled.peek() {
+                return;
+            }
             self.keyboard_pickup(&ev);
             return;
         }
@@ -349,6 +356,39 @@ impl UseDraggable {
 /// }
 /// ```
 pub fn use_draggable(id: DraggableId) -> UseDraggable {
+    let disabled = use_signal(|| false);
+    use_draggable_with(id, disabled)
+}
+
+/// Like [`use_draggable`], but with a reactive `disabled` flag.
+///
+/// While `disabled` reads `true`, the draggable can't be picked up by pointer
+/// or keyboard — `on_pointer_down` and the Space/Enter pickup both no-op. Flip
+/// the signal and the next interaction respects it. Read it back via
+/// [`UseDraggable::disabled`] to drive `aria-disabled` or a `not-allowed`
+/// cursor.
+///
+/// # Example
+///
+/// ```ignore
+/// use dioxus::prelude::*;
+/// use taino_dnd_core::DraggableId;
+/// use taino_dnd_dioxus::use_draggable_with;
+///
+/// fn Item() -> Element {
+///     let locked = use_signal(|| true);
+///     let d = use_draggable_with(DraggableId(1), locked);
+///     rsx! {
+///         div {
+///             onmounted: move |e| d.on_mounted(e),
+///             onpointerdown: move |e| d.on_pointer_down(e),
+///             "aria-disabled": "{d.disabled}",
+///             "locked while `locked` is true"
+///         }
+///     }
+/// }
+/// ```
+pub fn use_draggable_with(id: DraggableId, disabled: Signal<bool>) -> UseDraggable {
     let ctx = use_dnd_context();
     let element = use_signal::<Option<Rc<MountedData>>>(|| None);
 
@@ -368,7 +408,7 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
         _ => (0.0, 0.0),
     });
 
-    UseDraggable { id, element, is_dragging, transform, ctx }
+    UseDraggable { id, element, is_dragging, transform, disabled, ctx }
 }
 
 fn is_activation(key: &Key) -> bool {

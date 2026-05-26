@@ -21,6 +21,10 @@ pub struct UseDraggable {
     /// Translation (in CSS pixels) to apply while dragging.
     /// `(0.0, 0.0)` when not dragging.
     pub transform: Signal<(f64, f64)>,
+    /// Reactive disabled flag. While `true`, this draggable can't be picked
+    /// up (pointer or keyboard). Read it to set `aria-disabled` / styling.
+    /// Always `false` for [`use_draggable`]; set via [`use_draggable_with`].
+    pub disabled: Signal<bool>,
     /// The identifier this hook was instantiated with.
     pub id: DraggableId,
     ctx: DndContext,
@@ -30,7 +34,7 @@ impl UseDraggable {
     /// `on:pointerdown` handler. Starts a `Pressed` state; movement past the
     /// drag threshold promotes it to `Dragging`.
     pub fn on_pointer_down(self, ev: &web_sys::PointerEvent) {
-        if ev.button() != 0 {
+        if ev.button() != 0 || self.disabled.get_untracked() {
             return;
         }
         let at = Point::new(ev.client_x().into(), ev.client_y().into());
@@ -157,6 +161,9 @@ impl UseDraggable {
 
         // Pickup path: Space/Enter while not dragging.
         if !is_dragging_me && matches!(current, DragState::Idle) && is_activation(&key) {
+            if self.disabled.get_untracked() {
+                return;
+            }
             self.keyboard_pickup(ev);
             return;
         }
@@ -336,6 +343,35 @@ impl UseDraggable {
 /// }
 /// ```
 pub fn use_draggable(id: DraggableId) -> UseDraggable {
+    use_draggable_with(id, Signal::derive(|| false))
+}
+
+/// Like [`use_draggable`], but with a reactive `disabled` flag.
+///
+/// While `disabled` reads `true`, the draggable can't be picked up by pointer
+/// or keyboard — `on_pointer_down` and the Space/Enter pickup both no-op. The
+/// flag is reactive: flip the signal and the next interaction respects it.
+/// Read it back via [`UseDraggable::disabled`] to drive `aria-disabled` or a
+/// `not-allowed` cursor.
+///
+/// # Example
+///
+/// ```no_run
+/// use leptos::prelude::*;
+/// use taino_dnd_core::DraggableId;
+/// use taino_dnd_leptos::{provide_dnd_context, use_draggable_with};
+///
+/// # #[component] fn Item() -> impl IntoView {
+/// let locked = RwSignal::new(true);
+/// let d = use_draggable_with(DraggableId(1), locked.into());
+/// view! {
+///     <div node_ref=d.node_ref aria-disabled=move || d.disabled.get().to_string()>
+///         "locked while `locked` is true"
+///     </div>
+/// }
+/// # }
+/// ```
+pub fn use_draggable_with(id: DraggableId, disabled: Signal<bool>) -> UseDraggable {
     let ctx = use_dnd_context();
     let node_ref = NodeRef::<Div>::new();
 
@@ -367,7 +403,7 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
         }
     });
 
-    UseDraggable { node_ref, is_dragging, transform, id, ctx }
+    UseDraggable { node_ref, is_dragging, transform, disabled, id, ctx }
 }
 
 fn is_activation(key: &str) -> bool {

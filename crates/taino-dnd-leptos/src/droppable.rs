@@ -26,6 +26,11 @@ pub struct UseDroppable {
     pub displacement: Signal<(f64, f64)>,
     /// The identifier this hook was instantiated with.
     pub id: DroppableId,
+    /// Reactive disabled flag. While `true`, this droppable is removed from
+    /// the registry: it's never reported as `over`, never participates in the
+    /// drop-preview, and can't receive a drop. Always `false` for
+    /// [`use_droppable`]; set via [`use_droppable_with`].
+    pub disabled: Signal<bool>,
     #[allow(dead_code)]
     ctx: DndContext,
 }
@@ -76,6 +81,30 @@ impl UseDroppable {
 /// }
 /// ```
 pub fn use_droppable(id: DroppableId) -> UseDroppable {
+    use_droppable_with(id, Signal::derive(|| false))
+}
+
+/// Like [`use_droppable`], but with a reactive `disabled` flag.
+///
+/// While `disabled` reads `true`, the droppable is pulled from the registry:
+/// it's never reported as `over`, never shifts in the drop-preview, and can't
+/// receive a drop. Flip the signal and it rejoins on the next tick (re-measured
+/// from the DOM). Read it back via [`UseDroppable::disabled`] for styling.
+///
+/// # Example
+///
+/// ```no_run
+/// use leptos::prelude::*;
+/// use taino_dnd_core::DroppableId;
+/// use taino_dnd_leptos::{provide_dnd_context, use_droppable_with};
+///
+/// # #[component] fn Zone() -> impl IntoView {
+/// let full = RwSignal::new(true);
+/// let z = use_droppable_with(DroppableId(9), full.into());
+/// view! { <div node_ref=z.node_ref class:full=move || z.disabled.get()>"zone"</div> }
+/// # }
+/// ```
+pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppable {
     let ctx = use_dnd_context();
     let node_ref = NodeRef::<Div>::new();
 
@@ -117,11 +146,17 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         })
     });
 
-    // Measure the rect once the node is attached.
+    // Registration authority: react to both node mount and `disabled`. When
+    // disabled, pull this droppable out of the registry so collision / preview
+    // skip it; when enabled (and mounted), measure and (re-)register it.
     #[cfg(target_arch = "wasm32")]
     {
         use wasm_bindgen::JsCast;
         Effect::new(move |_| {
+            if disabled.get() {
+                ctx.remove_droppable(id);
+                return;
+            }
             if let Some(el) = node_ref.get() {
                 if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
                     let rect = crate::dom::bounding_rect(el);
@@ -146,7 +181,7 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         });
 
         Effect::new(move |_| {
-            if is_active.get() {
+            if is_active.get() && !disabled.get_untracked() {
                 if let Some(el) = node_ref.get_untracked() {
                     if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
                         let rect = crate::dom::bounding_rect(el);
@@ -170,7 +205,9 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         // to the preview and matches `shift` for the pure-scroll case.
         Effect::new(move |_| {
             ctx.measurement_tick.get(); // subscribe to container-scroll ticks
-            if matches!(ctx.state.get_untracked(), DragState::Dragging { .. }) {
+            if matches!(ctx.state.get_untracked(), DragState::Dragging { .. })
+                && !disabled.get_untracked()
+            {
                 if let Some(el) = node_ref.get_untracked() {
                     if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
                         let rect = crate::dom::bounding_rect(el);
@@ -185,5 +222,5 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
         ctx.remove_droppable(id);
     });
 
-    UseDroppable { node_ref, is_over, displacement, id, ctx }
+    UseDroppable { node_ref, is_over, displacement, id, disabled, ctx }
 }
