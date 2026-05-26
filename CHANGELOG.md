@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-05-26
+### Added
+- **Scroll-container auto-scroll (both bindings).** Auto-scroll now drives
+  arbitrary overflow ancestors, not just the window. During a drag the RAF
+  loop walks the scrollable-ancestor chain of the element under the pointer
+  (innermost first) and scrolls the first one that can still move toward the
+  pointer's edge, falling back to the window. A single **capturing** window
+  `scroll` listener catches scrolls of any descendant container (scroll events
+  don't bubble, but the capture phase reaches the window-level listener) and
+  keeps the droppable registry correct: the window path shifts every rect by
+  the inverse delta (cheap), while a container scroll re-measures (only that
+  container's descendants moved). To make the container re-measure flicker-free,
+  `taino-dnd-leptos`'s `dom::bounding_rect` now subtracts the element's computed
+  `transform: translate(...)` (matching the Dioxus binding), so a mid-drag
+  remeasure returns the layout position instead of feeding the drop-preview
+  transform back into collision detection. Demonstrated by making the
+  `sortable-list` examples (both frameworks) a bounded, scrollable region.
+- **Drop-settle animation (both bindings).** On release the `DragOverlay` now
+  glides from the drop position to the slot the item lands in (the `over`
+  droppable, or the source's origin when dropped outside any target) before the
+  state settles to `Idle` — the react-beautiful-dnd "fly into place" feel. The
+  state machine already modelled the `Dropping → Settle` phase; the bindings now
+  use it: `on_pointer_up` / keyboard-drop stash the target in a new
+  `drop_target` signal, the overlay applies a CSS `transform` transition toward
+  it, and a timer fires `Settle`. Respects `prefers-reduced-motion` (settles
+  immediately) and is `None`-safe on native. Every example using `DragOverlay`
+  gets it with no code change.
+- **`taino-dnd-dioxus` reaches full API parity with `taino-dnd-leptos`.**
+  - `use_flip` / `use_flip_with` / `FlipConfig` ported to the Dioxus
+    binding (new `flip.rs`). Same First/Last/Invert/Play technique as the
+    Leptos hook: it animates the *post-drop settle* (items glide to their
+    new slots after release), is suppressed during an active drag, and
+    respects `prefers-reduced-motion`. Takes the droppable's mounted-element
+    signal (`UseDroppable::element`) where the Leptos version takes a
+    `NodeRef`. Apply it to a wrapper with **no** reactive `style` binding so
+    Dioxus's attribute reconciliation doesn't clobber the hook's direct
+    transform writes (the complement to `drop_preview_style`).
+  - `examples/kanban-dioxus`: the Dioxus twin of the Leptos kanban board.
+    Three columns, cross-column moves, column-tail "drop at end" zones,
+    pointer + touch + keyboard, `DragOverlay`, and `DndAnnouncer`. Uses
+    `use_flip` for the reorder animation (contrast with the Dioxus
+    sortable-list, which uses the live drop-preview).
+  - `taino-dnd-dioxus` now opts into `clippy::{unwrap_used, expect_used,
+    panic}` (`#![warn]`), matching the Leptos crate so CI's `-D warnings`
+    makes any new occurrence in non-test code a hard error.
+  - Enabled the `MediaQueryList` web-sys feature on `taino-dnd-dioxus`
+    (required by `use_flip`'s `prefers-reduced-motion` check).
+
 ## [0.4.1] - 2026-05-15
 ### Fixed
 - **Dioxus auto-scroll velocity decay across many drags.** The window
@@ -157,4 +205,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   context, but call sites need to pass one — typically
   `&ModifierContext::default()` for pure-vector code.
 
-[Unreleased]: https://github.com/juanma-dev/taino-leptos-dnd/commits/main
+[0.4.5]: https://github.com/juanma-dev/taino-leptos-dnd/compare/v0.4.1...v0.4.5

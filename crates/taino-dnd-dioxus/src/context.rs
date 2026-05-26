@@ -41,6 +41,14 @@ pub struct DndContext {
     /// [`Modifier::RestrictToParent`] for clamping. Cleared when state
     /// returns to Idle (see `provide_dnd_context`).
     pub(crate) dragged_element_rect: Signal<Option<Rect>>,
+    /// While in [`DragState::Dropping`], the viewport-space point the drag
+    /// overlay should animate **to** — the top-left of the slot the item
+    /// lands in, or the source's origin when dropped outside any droppable.
+    /// `None` outside a drop animation. Drives [`DragOverlay`]'s exit glide
+    /// (the post-release "fly to slot" settle).
+    ///
+    /// [`DragOverlay`]: crate::DragOverlay
+    pub(crate) drop_target: Signal<Option<Point>>,
     /// Ordered list of [`Modifier`]s applied to the drag displacement
     /// before it's used for the visual transform and for collision
     /// detection. Empty by default. Mutate with
@@ -76,6 +84,14 @@ pub struct DndContext {
     /// avoiding 18× re-evaluations per pointermove event.
     pub dragged_droppable: Memo<Option<DroppableId>>,
 }
+
+/// Duration of the drop-settle overlay animation, in milliseconds. The
+/// overlay's CSS transition and the `Settle` timer share this value so the
+/// state returns to `Idle` exactly when the glide finishes.
+// `unreachable_pub` would prefer `pub(crate)` (the module is private), which
+// then trips `redundant_pub_crate`; the const is genuinely crate-internal.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 
 /// The outcome of a completed drag interaction.
 ///
@@ -338,6 +354,38 @@ impl DndContext {
         let v = self.modify(Vector::new(raw.x - start.x, raw.y - start.y));
         Point::new(start.x + v.x, start.y + v.y)
     }
+
+    /// Settle a completed drop (state is already `Dropping`).
+    ///
+    /// When `to` is `Some` and motion is allowed, the overlay animates to `to`
+    /// over [`DROP_ANIMATION_MS`] before the state returns to `Idle`;
+    /// otherwise it settles immediately. `to` is the viewport-space top-left
+    /// of the slot the item lands in (see [`Self::drop_target`]).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_variables, unused_mut))]
+    pub(crate) fn settle_drop(mut self, to: Option<Point>) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(to) = to {
+            if !crate::dom::prefers_reduced_motion() {
+                self.drop_target.set(Some(to));
+                let ctx = self;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                crate::dom::set_timeout(DROP_ANIMATION_MS as i32, move || ctx.finish_settle());
+                return;
+            }
+        }
+        self.finish_settle();
+    }
+
+    /// Complete the `Dropping → Idle` transition and clear drop-related state.
+    /// Guarded so a drop animation that outlives the start of a *new* drag
+    /// doesn't clobber it.
+    fn finish_settle(mut self) {
+        if matches!(*self.state.peek(), DragState::Dropping { .. }) {
+            self.state.set(DragState::Idle);
+            self.over.set(None);
+        }
+        self.drop_target.set(None);
+    }
 }
 
 /// Install a [`DndContext`] for descendants. Call once near the root of
@@ -354,6 +402,7 @@ pub fn provide_dnd_context() -> DndContext {
     let last_drop = use_signal::<Option<DropResult>>(|| None);
     let announcement = use_signal(String::new);
     let dragged_element_rect = use_signal::<Option<Rect>>(|| None);
+    let drop_target = use_signal::<Option<Point>>(|| None);
     let modifiers = use_signal::<Vec<Modifier>>(Vec::new);
     let restrict_container = use_signal::<Option<Rect>>(|| None);
     let auto_scroll = use_signal(AutoScrollConfig::default);
@@ -373,6 +422,7 @@ pub fn provide_dnd_context() -> DndContext {
         last_drop,
         announcement,
         dragged_element_rect,
+        drop_target,
         modifiers,
         restrict_container,
         auto_scroll,

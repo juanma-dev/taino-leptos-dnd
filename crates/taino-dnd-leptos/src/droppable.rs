@@ -156,15 +156,29 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
             }
         });
 
-        // Scroll-driven re-measurement is handled by
-        // `DndContext::shift_droppable_rects` from the auto-scroll RAF
-        // and the window `scroll` listener. We intentionally do **not**
-        // subscribe to `measurement_tick` here: a mid-drag
-        // `getBoundingClientRect` returns the rect *including* the
-        // drop-preview CSS transform, so feeding that back into the
-        // registry would produce a flicker loop (transform applies →
-        // measure → registry shifts → `update_over` reports no
-        // containment → transform clears → repeat).
+        // Window-scroll re-measurement is handled by
+        // `DndContext::shift_droppable_rects` (cheaper: pure arithmetic,
+        // no `getComputedStyle` per frame). **Container** scroll, however,
+        // moves only the descendants of the scrolled overflow ancestor —
+        // a blanket shift would be wrong — so the capturing scroll
+        // listener bumps `measurement_tick` and we re-measure here.
+        //
+        // This is safe (no flicker) because `bounding_rect` subtracts the
+        // drop-preview `transform: translate(...)`, returning the layout
+        // position. Measuring the transform-included rect was the original
+        // flicker source; with the transform removed, remeasure is inert
+        // to the preview and matches `shift` for the pure-scroll case.
+        Effect::new(move |_| {
+            ctx.measurement_tick.get(); // subscribe to container-scroll ticks
+            if matches!(ctx.state.get_untracked(), DragState::Dragging { .. }) {
+                if let Some(el) = node_ref.get_untracked() {
+                    if let Some(el) = (*el).dyn_ref::<web_sys::Element>() {
+                        let rect = crate::dom::bounding_rect(el);
+                        ctx.upsert_droppable(id, rect);
+                    }
+                }
+            }
+        });
     }
 
     on_cleanup(move || {

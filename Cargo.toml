@@ -7,13 +7,14 @@ members = [
     "examples/sortable-list",
     "examples/sortable-list-dioxus",
     "examples/kanban",
+    "examples/kanban-dioxus",
     "examples/multi-zone",
     "examples/multi-zone-dioxus",
 ]
 # Future members (Stage 3): "crates/taino-dnd-yew"
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.5"
 edition = "2021"
 rust-version = "1.85"
 license = "MIT OR Apache-2.0"
@@ -25,7 +26,7 @@ categories = ["wasm", "web-programming", "gui"]
 
 [workspace.dependencies]
 # Internal
-taino-dnd-core = { version = "0.4.1", path = "crates/taino-dnd-core" }
+taino-dnd-core = { version = "0.4.5", path = "crates/taino-dnd-core" }
 
 # Leptos ecosystem (Stage 1 target — pin to a single minor for the workspace)
 leptos = { version = "0.7", default-features = false }

@@ -29,7 +29,7 @@ inaccessible, and visually inconsistent). `taino-leptos-dnd` aims to provide:
 | ---------------------- | ---------------------------------------- | ------------- |
 | `taino-dnd-core`       | Geometry, state machine, framework-free  | Pre-alpha     |
 | `taino-dnd-leptos`     | Leptos hooks and components              | Pre-alpha     |
-| `taino-dnd-dioxus`     | Dioxus integration                       | Pre-alpha (S3 in progress) |
+| `taino-dnd-dioxus`     | Dioxus integration (full API parity)     | Pre-alpha     |
 | `taino-dnd-yew`        | Yew integration                          | Planned (S3)  |
 
 ## Roadmap
@@ -88,9 +88,10 @@ fn App() -> impl IntoView {
 
 | Path | Framework | What it shows |
 | ---- | --------- | ------------- |
-| [`examples/sortable-list`](examples/sortable-list) | Leptos | Single-list reorder with live drop-preview, overlay, ARIA, keyboard. |
+| [`examples/sortable-list`](examples/sortable-list) | Leptos | Single-list reorder with live drop-preview, overlay, ARIA, keyboard, scroll-container auto-scroll, and the drop-settle animation. |
 | [`examples/kanban`](examples/kanban) | Leptos | Multi-column board, cross-droppable moves, NVDA-validated a11y. |
 | [`examples/sortable-list-dioxus`](examples/sortable-list-dioxus) | Dioxus | The Stage-3 binding end-to-end — same UX as the Leptos sortable-list, identical API shape. |
+| [`examples/kanban-dioxus`](examples/kanban-dioxus) | Dioxus | Dioxus twin of the kanban board — cross-column moves plus FLIP post-drop settle animation. |
 
 ### Running them locally
 
@@ -104,6 +105,7 @@ rustup target add wasm32-unknown-unknown # once
 cd examples/sortable-list         && trunk serve --open
 cd examples/kanban                && trunk serve --open
 cd examples/sortable-list-dioxus  && trunk serve --open
+cd examples/kanban-dioxus         && trunk serve --open
 ```
 
 `--open` opens the page in your default browser. Trunk watches the

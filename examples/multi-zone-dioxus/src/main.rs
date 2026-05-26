@@ -326,7 +326,7 @@ fn CardView(card: Card, displacements: Memo<HashMap<u64, (f64, f64)>>) -> Elemen
     }
 }
 
-/// Render the visual preview inside the [`DragOverlay`].
+/// Render the visual preview inside the `DragOverlay`.
 fn render_overlay(zones: Signal<Vec<Zone>>) -> Element {
     let ctx = use_dnd_context();
     let DragState::Dragging { id, .. } = *ctx.state.read() else {

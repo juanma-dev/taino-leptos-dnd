@@ -796,9 +796,9 @@ dependencies = [
 
 [[package]]
 name = "enumset"
-version = "1.1.12"
+version = "1.1.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f96a4a12fe60ac746ae295a1a4ecb5bb02debc20856506c8635288065f142de"
+checksum = "839c4174b41e75c8f7306110b2c51996a293b8d1d850edd529011841d9fede7d"
 dependencies = [
  "enumset_derive",
 ]
@@ -853,7 +853,7 @@ dependencies = [
 
 [[package]]
 name = "example-kanban"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -863,8 +863,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-kanban-dioxus"
+version = "0.4.5"
+dependencies = [
+ "console_error_panic_hook",
+ "dioxus",
+ "taino-dnd-core",
+ "taino-dnd-dioxus",
+]
+
+[[package]]
 name = "example-multi-zone"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -875,7 +885,7 @@ dependencies = [
 
 [[package]]
 name = "example-multi-zone-dioxus"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "console_error_panic_hook",
  "dioxus",
@@ -885,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "example-sortable-list"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "console_error_panic_hook",
  "leptos",
@@ -896,7 +906,7 @@ dependencies = [
 
 [[package]]
 name = "example-sortable-list-dioxus"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "console_error_panic_hook",
  "dioxus",
@@ -2395,16 +2405,17 @@ dependencies = [
 
 [[package]]
 name = "taino-dnd-core"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "thiserror 1.0.69",
 ]
 
 [[package]]
 name = "taino-dnd-dioxus"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "dioxus",
+ "js-sys",
  "taino-dnd-core",
  "wasm-bindgen",
  "web-sys",
@@ -2412,7 +2423,7 @@ dependencies = [
 
 [[package]]
 name = "taino-dnd-leptos"
-version = "0.4.1"
+version = "0.4.5"
 dependencies = [
  "leptos",
  "taino-dnd-core",

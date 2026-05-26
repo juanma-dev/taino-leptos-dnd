@@ -19,12 +19,14 @@ dioxus = { workspace = true, features = ["html", "hooks", "macro", "signals"] }
 # unconditionally to keep the public API uniform across targets — mirrors
 # the taino-dnd-leptos crate.
 wasm-bindgen = { workspace = true }
+js-sys = { workspace = true }
 web-sys = { workspace = true, features = [
     "CssStyleDeclaration",
     "Document",
     "DomRect",
     "Element",
     "HtmlElement",
+    "MediaQueryList",
     "PointerEvent",
     "Window",
 ] }

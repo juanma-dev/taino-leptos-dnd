@@ -54,7 +54,23 @@ pub struct DndContext {
     /// Bounding rect of the dragged element at drag-start. Populated by
     /// `use_draggable` on `pointerdown`/keyboard-pickup; cleared on settle.
     pub(crate) dragged_element_rect: RwSignal<Option<Rect>>,
+    /// While in [`DragState::Dropping`], the viewport-space point the drag
+    /// overlay should animate **to** — the top-left of the slot the item
+    /// lands in, or the source's origin when dropped outside any droppable.
+    /// `None` outside a drop animation. Drives [`DragOverlay`]'s exit
+    /// transition (the post-release "fly to slot" settle).
+    ///
+    /// [`DragOverlay`]: crate::DragOverlay
+    pub(crate) drop_target: RwSignal<Option<Point>>,
 }
+
+/// Duration of the drop-settle overlay animation, in milliseconds. The
+/// overlay's CSS transition and the `Settle` timer share this value so the
+/// state returns to `Idle` exactly when the glide finishes.
+// `unreachable_pub` would prefer `pub(crate)` (the module is private), which
+// then trips `redundant_pub_crate`; the const is genuinely crate-internal.
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 
 /// The outcome of a completed drag interaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +95,7 @@ impl Default for DndContext {
             measurement_tick: RwSignal::new(0),
             restrict_container: RwSignal::new(None),
             dragged_element_rect: RwSignal::new(None),
+            drop_target: RwSignal::new(None),
         }
     }
 }
@@ -271,21 +288,53 @@ impl DndContext {
         Point::new(start.x + v.x, start.y + v.y)
     }
 
-    /// Ask all live `use_droppable` instances to re-measure their bounding
-    /// rects on the next reactive tick. Reserved for layout changes
-    /// that aren't purely scroll-driven (e.g. external resize). The
-    /// auto-scroll path and the window scroll listener prefer
-    /// [`Self::shift_droppable_rects`] because mid-drag `getBoundingClientRect`
-    /// returns *transform-included* rects, and our drop-preview applies
-    /// transforms — measuring then would feed the transform back into
-    /// the registry, producing a flicker loop.
+    /// Settle a completed drop (state is already `Dropping`).
     ///
-    /// Currently no internal caller subscribes to `measurement_tick`
-    /// (the previous mid-drag remeasure effect was the source of the
-    /// flicker bug). Kept available so user code with custom
-    /// `use_droppable` wrappers can plug in their own remeasure
-    /// trigger.
-    #[allow(dead_code)]
+    /// When `to` is `Some` and motion is allowed, the overlay animates to `to`
+    /// over [`DROP_ANIMATION_MS`] before the state returns to `Idle`;
+    /// otherwise it settles immediately. `to` is the viewport-space top-left
+    /// of the slot the item lands in (see [`Self::drop_target`]).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(unused_variables))]
+    pub(crate) fn settle_drop(self, to: Option<Point>) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(to) = to {
+            if !crate::dom::prefers_reduced_motion() {
+                self.drop_target.set(Some(to));
+                let ctx = self;
+                leptos::prelude::set_timeout(
+                    move || ctx.finish_settle(),
+                    std::time::Duration::from_millis(DROP_ANIMATION_MS),
+                );
+                return;
+            }
+        }
+        self.finish_settle();
+    }
+
+    /// Complete the `Dropping → Idle` transition and clear drop-related state.
+    /// Guarded so a drop animation that outlives the start of a *new* drag
+    /// doesn't clobber it.
+    fn finish_settle(self) {
+        if matches!(self.state.get_untracked(), DragState::Dropping { .. }) {
+            self.state.set(DragState::Idle);
+            self.over.set(None);
+        }
+        self.drop_target.set(None);
+    }
+
+    /// Ask all live `use_droppable` instances to re-measure their bounding
+    /// rects on the next reactive tick.
+    ///
+    /// Called by the capturing scroll listener when an **overflow ancestor**
+    /// (a scroll container, not the window) scrolls during a drag: only that
+    /// container's descendants move, so a blanket
+    /// [`Self::shift_droppable_rects`] would be wrong — each droppable must
+    /// re-measure its own rect. This is safe because `dom::bounding_rect`
+    /// subtracts the drop-preview `transform`, so the measured value is the
+    /// layout position and can't feed the flicker loop that the original
+    /// transform-included remeasure produced. The window-scroll path still
+    /// prefers `shift_droppable_rects` (no `getComputedStyle` per frame).
+    #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
     pub(crate) fn request_remeasure(self) {
         self.measurement_tick.update(|t| *t = t.wrapping_add(1));
     }

@@ -1,26 +1,22 @@
-//! Viewport-edge auto-scroll driven by a `requestAnimationFrame` loop,
-//! plus a window `scroll` listener that handles user-initiated
-//! scrolling during a drag.
+//! Auto-scroll driven by a `requestAnimationFrame` loop, plus a
+//! **capturing** window `scroll` listener for user-initiated scrolling
+//! during a drag.
 //!
 //! Mirror of `taino_dnd_leptos::autoscroll`. `install` is called from
 //! [`provide_dnd_context`](crate::provide_dnd_context) and wires:
 //!
-//! 1. A `use_effect` that, when state enters `Dragging`, schedules a
-//!    RAF loop. Each tick computes a scroll velocity via
-//!    [`taino_dnd_core::scroll_velocity`] and calls
-//!    `window.scrollBy(dx, dy)`.
-//! 2. A `scroll` event listener on the window. While dragging, any
-//!    scroll (programmatic from the RAF, or user-initiated via wheel,
-//!    trackpad, or scrollbar) bumps `measurement_tick` to refresh
-//!    droppable rects and re-runs collision detection at the
-//!    unchanged pointer position. Without this listener, mouse-wheel
-//!    scrolling mid-drag left rects stale and the highlighted target
-//!    stuck on whichever card was last under the cursor.
-//!
-//! Scope is intentionally limited to the document/viewport. Arbitrary
-//! overflow ancestors are deferred — measuring scroll containers
-//! requires walking the parent chain and inspecting computed styles,
-//! which is more plumbing than the 80% case needs.
+//! 1. A `use_effect` that, when state enters `Dragging`, schedules a RAF
+//!    loop. Each tick scrolls the innermost **scroll container** under the
+//!    pointer that can still move toward the pointer's edge (or the window
+//!    if none can), using [`taino_dnd_core::scroll_velocity`] — which works
+//!    for any rect, viewport or container.
+//! 2. A capturing `scroll` listener on the window. `scroll` events don't
+//!    bubble, but the capture phase reaches a window-level listener for
+//!    scrolls of *any* descendant element, so this single listener covers
+//!    both window and overflow-container scrolls. While dragging it calls
+//!    `remeasure_all` (correct regardless of which element scrolled) and
+//!    re-runs collision detection at the unchanged pointer position. It is
+//!    skipped while the RAF loop's own scroll is in flight (`raf_scrolling`).
 //!
 //! On non-wasm targets the whole module compiles to a single no-op
 //! [`install`] so the rest of the crate stays target-agnostic.
@@ -115,7 +111,16 @@ mod imp {
             let effective = ctx.effective_point(start, current);
             ctx.update_over(effective);
         }) as Box<dyn FnMut(web_sys::Event)>);
-        let _ = win.add_event_listener_with_callback("scroll", listener.as_ref().unchecked_ref());
+        // `true` = capture phase, so scrolls of descendant overflow
+        // containers (which don't bubble) still reach this single
+        // window-level listener. `remeasure_all` re-reads every droppable
+        // rect from the DOM, so it's correct regardless of *which* element
+        // scrolled (window or container).
+        let _ = win.add_event_listener_with_callback_and_bool(
+            "scroll",
+            listener.as_ref().unchecked_ref(),
+            true,
+        );
         // The listener lives for the page lifetime — a context is
         // installed once near the root of a drag-and-drop region.
         listener.forget();
@@ -155,27 +160,44 @@ mod imp {
             };
 
             let config = *ctx.auto_scroll.peek();
-            let v = scroll_velocity(current, viewport_rect(&win_for_cb), config);
 
-            if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
-                // Guard: suppress the scroll listener while we do our
-                // own scrollBy + remeasure + update_over sequence.
-                ctx.raf_scrolling.set(true);
-                win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
+            // Guard: suppress the scroll listener while we do our own
+            // scroll + remeasure + update_over sequence (scroll events may
+            // fire synchronously in some browsers).
+            ctx.raf_scrolling.set(true);
 
-                // Directly remeasure and update collision — this is
-                // synchronous, so the guard is still active and the
-                // scroll listener (which may fire synchronously from
-                // scrollBy in some browsers) is suppressed.
-                ctx.remeasure_all();
-                let DragState::Dragging { start, .. } = *ctx.state.peek() else {
-                    ctx.raf_scrolling.set(false);
-                    return;
-                };
-                let effective = ctx.effective_point(start, current);
-                ctx.update_over(effective);
-                ctx.raf_scrolling.set(false);
+            // Prefer the innermost scroll container under the pointer that
+            // can still scroll toward the pointer's edge; otherwise scroll
+            // the window. Edge math (`scroll_velocity`) works for any rect.
+            let mut did_scroll = false;
+            if let Some(target) = crate::dom::element_from_point(current.x, current.y) {
+                for el in crate::dom::scrollable_ancestors(&target) {
+                    let v = scroll_velocity(current, crate::dom::bounding_rect_raw(&el), config);
+                    let moving = v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON;
+                    if moving && crate::dom::can_scroll(&el, v.x, v.y) {
+                        crate::dom::scroll_element_by(&el, v.x, v.y);
+                        did_scroll = true;
+                        break;
+                    }
+                }
             }
+            if !did_scroll {
+                let v = scroll_velocity(current, viewport_rect(&win_for_cb), config);
+                if v.x.abs() > f64::EPSILON || v.y.abs() > f64::EPSILON {
+                    win_for_cb.scroll_by_with_x_and_y(v.x, v.y);
+                    did_scroll = true;
+                }
+            }
+
+            if did_scroll {
+                // Synchronous remeasure + collision while the guard is held.
+                ctx.remeasure_all();
+                if let DragState::Dragging { start, .. } = *ctx.state.peek() {
+                    let effective = ctx.effective_point(start, current);
+                    ctx.update_over(effective);
+                }
+            }
+            ctx.raf_scrolling.set(false);
 
             // Schedule the next tick while still dragging.
             let next = cb_clone.borrow();

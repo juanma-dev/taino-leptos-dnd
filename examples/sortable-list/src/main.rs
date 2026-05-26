@@ -23,7 +23,7 @@ fn App() -> impl IntoView {
     let ctx = provide_dnd_context();
 
     let items = RwSignal::new(
-        (1..=6_u64).map(|id| Item { id, label: format!("Item #{id}") }).collect::<Vec<_>>(),
+        (1..=20_u64).map(|id| Item { id, label: format!("Item #{id}") }).collect::<Vec<_>>(),
     );
 
     Effect::new(move |_| {

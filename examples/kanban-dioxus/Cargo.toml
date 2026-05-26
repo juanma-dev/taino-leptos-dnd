@@ -1,6 +1,6 @@
 [package]
-name = "example-sortable-list-dioxus"
-description = "Minimal sortable-list demo for taino-dnd-dioxus."
+name = "example-kanban-dioxus"
+description = "Kanban-board demo for taino-dnd-dioxus, exercising cross-droppable moves with mouse, touch, and keyboard."
 version = "0.4.5"
 edition = "2021"
 publish = false

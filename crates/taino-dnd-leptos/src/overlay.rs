@@ -22,7 +22,7 @@
 use leptos::prelude::*;
 use taino_dnd_core::{DragState, Vector};
 
-use crate::context::use_dnd_context;
+use crate::context::{use_dnd_context, DROP_ANIMATION_MS};
 
 /// A fixed-position layer that follows the active drag.
 ///
@@ -64,39 +64,51 @@ pub fn DragOverlay(children: ChildrenFn) -> impl IntoView {
     let ctx = use_dnd_context();
 
     let style = move || {
-        let DragState::Dragging { start, current, .. } = ctx.state.get() else {
-            return String::new();
-        };
-        let raw = Vector::new(current.x - start.x, current.y - start.y);
-        let delta = ctx.modify(raw);
+        // The overlay container is sized to the dragged element's original
+        // bounding rect so the preview matches the source's footprint.
+        let size = ctx
+            .dragged_element_rect
+            .get()
+            .map_or(String::new(), |r| format!("width: {}px; height: {}px;", r.width, r.height));
 
-        // Position the overlay at the dragged element's original top-left
-        // plus the modifier-adjusted drag delta. This preserves the cursor's
-        // grab-point relative to the card. If we don't have the rect (rare —
-        // it should always be set during a drag), fall back to placing the
-        // overlay at the pointer.
-        let (x, y, size) = ctx.dragged_element_rect.get().map_or_else(
-            || (start.x + delta.x, start.y + delta.y, String::new()),
-            |rect| {
-                (
-                    rect.x + delta.x,
-                    rect.y + delta.y,
-                    format!("width: {}px; height: {}px;", rect.width, rect.height),
-                )
+        let (x, y, transition) = match ctx.state.get() {
+            // Active drag: track the modifier-adjusted pointer. Position the
+            // overlay at the dragged element's original top-left plus the
+            // drag delta, preserving the cursor's grab-point within the card.
+            DragState::Dragging { start, current, .. } => {
+                let delta = ctx.modify(Vector::new(current.x - start.x, current.y - start.y));
+                let (bx, by) =
+                    ctx.dragged_element_rect.get().map_or((start.x, start.y), |r| (r.x, r.y));
+                (bx + delta.x, by + delta.y, String::new())
+            }
+            // Drop-settle: glide from the release position to the landing slot
+            // (a CSS transition; the `Settle` timer unmounts us when it ends).
+            DragState::Dropping { .. } => match ctx.drop_target.get() {
+                Some(p) => (
+                    p.x,
+                    p.y,
+                    format!(
+                        "transition: transform {DROP_ANIMATION_MS}ms cubic-bezier(0.2, 0, 0, 1); "
+                    ),
+                ),
+                None => return String::new(),
             },
-        );
+            _ => return String::new(),
+        };
 
         format!(
             "position: fixed; top: 0; left: 0; \
              transform: translate({x}px, {y}px); \
              pointer-events: none; z-index: 9999; \
-             will-change: transform; {size}"
+             will-change: transform; {transition}{size}"
         )
     };
 
     view! {
         <Show
-            when=move || ctx.state.get().is_dragging()
+            when=move || {
+                matches!(ctx.state.get(), DragState::Dragging { .. } | DragState::Dropping { .. })
+            }
             fallback=|| ()
         >
             <div class="taino-dnd-overlay" style=style>

@@ -151,14 +151,20 @@ framework. Set up the pattern so a third (Yew) is trivial.
   - Initial slice (✅): `DndContext` + `provide_dnd_context` + `use_dnd_context`,
     using Dioxus `Signal<T>`. Same names, same shape as the Leptos binding so
     user code reads identically.
-  - Pending: port `use_draggable` (pointer + keyboard), `use_droppable`,
-    `DragOverlay`, modifiers, `use_flip`, auto-scroll.
+  - ✅ Full API parity: `use_draggable` (pointer + keyboard), `use_droppable`
+    (with live drop-preview), `DragOverlay`, `DndAnnouncer`, modifiers +
+    `use_drag_container`, `use_flip`, and viewport auto-scroll all ported.
+    Both `sortable-list-dioxus` and `kanban-dioxus` examples run end-to-end.
+    The crate opts into the same `clippy::{unwrap_used, expect_used, panic}`
+    lints as `taino-dnd-leptos`.
 - Publish all three crates on crates.io with synchronized minor versions.
 - Add `docs/PORTING.md` describing how to write a new binding.
 
 ### Acceptance
 
-- [ ] `taino-dnd-dioxus` example `sortable-list` works.
+- [x] `taino-dnd-dioxus` examples `sortable-list` and `kanban` work
+  end-to-end (pointer, touch, keyboard), at full parity with the Leptos
+  bindings.
 - [x] `taino-dnd-core` has **zero** `leptos`, `dioxus`, or framework deps.
 - [ ] Published `0.4.0` of all three crates on crates.io.
 

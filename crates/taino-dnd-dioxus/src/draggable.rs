@@ -96,25 +96,40 @@ impl UseDraggable {
         if !self.is_my_state(current) {
             return;
         }
-        // Genuine drop (not a click) records its destination.
-        if matches!(current, DragState::Dragging { .. }) {
+        // Genuine drop (not a click) records its destination and the slot the
+        // overlay should glide to during the drop-settle animation.
+        let to = if matches!(current, DragState::Dragging { .. }) {
             self.ctx
                 .last_drop
                 .set(Some(DropResult { draggable: self.id, over: *self.ctx.over.peek() }));
-        }
+            Some(self.drop_landing())
+        } else {
+            None
+        };
         if let Ok(state) = transition(current, DragEvent::PointerUp, DEFAULT_DRAG_THRESHOLD) {
             self.ctx.state.set(state);
-            // Stage-3 MVP: no exit animation — settle synchronously.
+            // Dragging → Dropping: animate the overlay to its slot, then settle.
+            // (Pressed → Idle is a click, not a drop — nothing to animate.)
             if matches!(state, DragState::Dropping { .. }) {
-                if let Ok(idle) = transition(state, DragEvent::Settle, DEFAULT_DRAG_THRESHOLD) {
-                    self.ctx.state.set(idle);
-                    self.ctx.over.set(None);
-                }
+                self.ctx.settle_drop(to);
             }
             #[cfg(target_arch = "wasm32")]
             self.release_pointer(&ev);
         }
         let _ = &ev;
+    }
+
+    /// Viewport-space top-left the drop overlay should glide to: the slot the
+    /// item lands in (the current `over` droppable), or the source's origin
+    /// when released outside any droppable (a snap-back).
+    fn drop_landing(self) -> Point {
+        if let Some(over) = *self.ctx.over.peek() {
+            if let Some(rect) = self.ctx.droppables.peek().get(&over).copied() {
+                return Point::new(rect.x, rect.y);
+            }
+        }
+        (*self.ctx.dragged_element_rect.peek())
+            .map_or(Point::new(0.0, 0.0), |r| Point::new(r.x, r.y))
     }
 
     /// `onpointercancel` handler. Wire this **and** `onpointerup` —
@@ -164,10 +179,10 @@ impl UseDraggable {
             if let Ok(state) = transition(current, DragEvent::PointerUp, DEFAULT_DRAG_THRESHOLD) {
                 let target = *self.ctx.over.peek();
                 self.ctx.last_drop.set(Some(DropResult { draggable: self.id, over: target }));
+                let to = self.drop_landing();
                 self.ctx.state.set(state);
-                if let Ok(idle) = transition(state, DragEvent::Settle, DEFAULT_DRAG_THRESHOLD) {
-                    self.ctx.state.set(idle);
-                    self.ctx.over.set(None);
+                if matches!(state, DragState::Dropping { .. }) {
+                    self.ctx.settle_drop(Some(to));
                 }
                 let msg = target.map_or_else(
                     || format!("Dropped item {} outside any target.", self.id.0),

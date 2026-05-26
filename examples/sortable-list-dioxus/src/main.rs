@@ -26,7 +26,7 @@ fn App() -> Element {
     let ctx = provide_dnd_context();
 
     let mut items =
-        use_signal(|| (1..=6_u64).map(|id| (id, format!("Item #{id}"))).collect::<Vec<_>>());
+        use_signal(|| (1..=20_u64).map(|id| (id, format!("Item #{id}"))).collect::<Vec<_>>());
 
     // React to a successful drop: move `draggable` to the slot occupied
     // by `over`. `take_last_drop` reads the value, subscribes to future
@@ -101,7 +101,7 @@ fn Row(id: u64, label: String) -> Element {
     }
 }
 
-/// Render the visual preview inside the [`DragOverlay`].
+/// Render the visual preview inside the `DragOverlay`.
 fn render_overlay(items: Signal<Vec<(u64, String)>>) -> Element {
     let ctx = use_dnd_context();
     let DragState::Dragging { id, .. } = *ctx.state.read() else {

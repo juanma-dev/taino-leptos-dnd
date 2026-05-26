@@ -26,13 +26,24 @@
 //!   show where the dragged item would land.
 //! - ✅ [`DragOverlay`] — fixed-position preview layer that mirrors the
 //!   active drag at the modifier-adjusted pointer position.
-//! - ⏳ `use_flip` (partly superseded by live drop-preview) and auto-scroll
-//!   on arbitrary overflow ancestors — coming in follow-up commits.
+//! - ✅ [`use_flip`] / [`use_flip_with`] — FLIP-based post-drop settle
+//!   animation for the reorder, the complement to the live drop-preview.
+//! - ✅ Auto-scroll of arbitrary overflow ancestors, not just the window:
+//!   the RAF loop scrolls the innermost scroll container under the pointer.
+//! - ✅ Drop-settle animation: the [`DragOverlay`] glides to the landing
+//!   slot on release before the state returns to idle.
 //!
 //! Wherever possible the API mirrors `taino-dnd-leptos` 1:1 so users
 //! who know one binding can read the other.
 
-#![doc(html_root_url = "https://docs.rs/taino-dnd-dioxus/0.0.1")]
+#![doc(html_root_url = "https://docs.rs/taino-dnd-dioxus/0.4.5")]
+// Parity with `taino-dnd-leptos`: no `unwrap()` / `expect()` / `panic!` in
+// public-facing paths. The one documented exception (`use_dnd_context`'s
+// missing-provider panic, raised by Dioxus's `use_context`) is inherent to
+// the framework call, not an `expect()` we own, so no inline `#[allow]` is
+// needed here.
+#![warn(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 mod announcer;
 mod autoscroll;
@@ -42,6 +53,7 @@ mod context;
 mod dom;
 mod draggable;
 mod droppable;
+mod flip;
 mod overlay;
 
 pub use announcer::DndAnnouncer;
@@ -49,6 +61,7 @@ pub use container::{use_drag_container, UseDragContainer};
 pub use context::{provide_dnd_context, use_dnd_context, DndContext, DropResult};
 pub use draggable::{use_draggable, UseDraggable};
 pub use droppable::{use_droppable, UseDroppable};
+pub use flip::{use_flip, use_flip_with, FlipConfig};
 pub use overlay::DragOverlay;
 
 // Re-exports so user code doesn't need a separate `taino-dnd-core` dep

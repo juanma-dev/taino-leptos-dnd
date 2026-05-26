@@ -37,7 +37,7 @@
 //! for the staged plan; Stage 1 ships the API in this quick-start, Stage 2 adds
 //! keyboard sensors, animations, auto-scroll, and ARIA announcements.
 
-#![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.0.1")]
+#![doc(html_root_url = "https://docs.rs/taino-dnd-leptos/0.4.5")]
 // Stage 2 acceptance: no `unwrap()` / `expect()` / `panic!` in public-facing
 // paths. See `crates/taino-dnd-core/src/lib.rs` for the rationale; the one
 // remaining `expect()` (in `use_dnd_context`) is `#[allow]`-ed inline because
