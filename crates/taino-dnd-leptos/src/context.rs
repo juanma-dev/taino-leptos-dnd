@@ -448,3 +448,89 @@ pub fn use_dnd_context() -> DndContext {
     use_context::<DndContext>()
         .expect("taino-dnd: provide_dnd_context() must be called in an ancestor")
 }
+
+// Native unit tests for the binding's reactive logic. Leptos reactivity runs
+// without a browser, so these exercise the real hook-layer behaviour
+// (collision, keyboard navigation, announcements, disabled handling) on the
+// host and run under a plain `cargo test`. DOM-dependent paths (pointer
+// capture, `getBoundingClientRect`) are covered by the browser suite in
+// `tests/web.rs`.
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+    use leptos::reactive::owner::Owner;
+
+    fn with_ctx(f: impl FnOnce(DndContext)) {
+        let owner = Owner::new();
+        owner.set();
+        f(DndContext::default());
+    }
+
+    #[test]
+    fn announce_event_uses_the_installed_formatter() {
+        with_ctx(|ctx| {
+            ctx.set_announcement_formatter(|ev| match ev {
+                AnnounceEvent::PickedUp { draggable } => format!("grabbed {}", draggable.0),
+                _ => "other".to_owned(),
+            });
+            ctx.announce_event(AnnounceEvent::PickedUp { draggable: DraggableId(7) });
+            assert_eq!(ctx.announcement.get_untracked(), "grabbed 7");
+        });
+    }
+
+    #[test]
+    fn announce_event_falls_back_to_default_formatter() {
+        with_ctx(|ctx| {
+            ctx.announce_event(AnnounceEvent::Cancelled { draggable: DraggableId(3) });
+            assert_eq!(ctx.announcement.get_untracked(), "Cancelled drag of item 3.");
+        });
+    }
+
+    #[test]
+    fn update_over_is_containment_first() {
+        with_ctx(|ctx| {
+            ctx.upsert_droppable(DroppableId(1), Rect::new(0.0, 0.0, 100.0, 50.0));
+            ctx.upsert_droppable(DroppableId(2), Rect::new(0.0, 100.0, 100.0, 50.0));
+
+            ctx.update_over(Point::new(50.0, 25.0));
+            assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)));
+
+            ctx.update_over(Point::new(50.0, 125.0));
+            assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
+
+            // The gap between the two stacked zones activates neither.
+            ctx.update_over(Point::new(50.0, 75.0));
+            assert_eq!(ctx.over.get_untracked(), None);
+        });
+    }
+
+    #[test]
+    fn keyboard_step_moves_over_to_the_neighbor() {
+        with_ctx(|ctx| {
+            ctx.upsert_droppable(DroppableId(1), Rect::new(0.0, 0.0, 100.0, 50.0));
+            ctx.upsert_droppable(DroppableId(2), Rect::new(0.0, 60.0, 100.0, 50.0));
+            ctx.state.set(DragState::Dragging {
+                id: DraggableId(1),
+                start: Point::new(50.0, 25.0),
+                current: Point::new(50.0, 25.0),
+            });
+            ctx.over.set(Some(DroppableId(1)));
+
+            assert_eq!(ctx.keyboard_step(Direction::Down), Some(DroppableId(2)));
+            assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
+
+            // At the bottom edge, stepping down stays put.
+            assert_eq!(ctx.keyboard_step(Direction::Down), Some(DroppableId(2)));
+        });
+    }
+
+    #[test]
+    fn shift_droppable_rects_translates_every_rect() {
+        with_ctx(|ctx| {
+            ctx.upsert_droppable(DroppableId(1), Rect::new(10.0, 10.0, 100.0, 50.0));
+            ctx.shift_droppable_rects(-5.0, -8.0);
+            let r = ctx.droppables.with_untracked(|m| m[&DroppableId(1)]);
+            assert!((r.x - 5.0).abs() < f64::EPSILON && (r.y - 2.0).abs() < f64::EPSILON);
+        });
+    }
+}

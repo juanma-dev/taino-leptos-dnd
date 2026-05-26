@@ -2418,6 +2418,7 @@ dependencies = [
  "js-sys",
  "taino-dnd-core",
  "wasm-bindgen",
+ "wasm-bindgen-test",
  "web-sys",
 ]
 

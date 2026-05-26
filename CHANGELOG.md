@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   numeric strings. Both `kanban` examples wire a label-resolving formatter —
   closing out the semantic-labels follow-up tracked in `docs/ROADMAP.md`.
 
+### Tested
+- **Hook-layer test coverage.** `taino-dnd-leptos` gains native unit tests that
+  drive the real reactive logic without a browser — containment-first
+  `update_over`, keyboard-sensor `keyboard_step`, the announcement formatter
+  (custom + default fallback), and `shift_droppable_rects`. `taino-dnd-dioxus`
+  gains a `VirtualDom`-based wasm smoke test (new browser harness), and the
+  Leptos browser smoke test now also asserts the `disabled` defaults. Core
+  `AnnounceEvent` / `default_announcement` are unit-tested too.
+
 ## [0.4.5] - 2026-05-26
 ### Added
 - **Scroll-container auto-scroll (both bindings).** Auto-scroll now drives

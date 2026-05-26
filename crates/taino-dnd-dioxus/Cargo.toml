@@ -31,5 +31,8 @@ web-sys = { workspace = true, features = [
     "Window",
 ] }
 
+[dev-dependencies]
+wasm-bindgen-test = { workspace = true }
+
 [lints]
 workspace = true

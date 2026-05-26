@@ -31,10 +31,12 @@ fn public_api_smoke() {
         let d = use_draggable(DraggableId(1));
         assert_eq!(d.id, DraggableId(1));
         assert!(!d.is_dragging.get_untracked());
+        assert!(!d.disabled.get_untracked());
 
         let z = use_droppable(DroppableId(1));
         assert_eq!(z.id, DroppableId(1));
         assert!(!z.is_over.get_untracked());
+        assert!(!z.disabled.get_untracked());
 
         // The provided context is what we get back.
         let same = use_dnd_context();
