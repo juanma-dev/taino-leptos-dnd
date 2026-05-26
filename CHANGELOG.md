@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.6] - 2026-05-26
 ### Added
 - **Conditional drag/drop (`disabled`), both bindings.** New
   `use_draggable_with(id, disabled)` and `use_droppable_with(id, disabled)`
@@ -233,4 +233,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   context, but call sites need to pass one — typically
   `&ModifierContext::default()` for pure-vector code.
 
+[0.4.6]: https://github.com/juanma-dev/taino-leptos-dnd/compare/v0.4.5...v0.4.6
 [0.4.5]: https://github.com/juanma-dev/taino-leptos-dnd/compare/v0.4.1...v0.4.5

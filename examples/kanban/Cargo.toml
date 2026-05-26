@@ -1,15 +1,15 @@
 [package]
 name = "example-kanban"
 description = "Kanban-board demo for taino-leptos-dnd, exercising cross-droppable moves with mouse, touch, and keyboard."
-version = "0.4.5"
+version = "0.4.6"
 edition = "2021"
 publish = false
 license.workspace = true
 
 [dependencies]
 leptos = { workspace = true, features = ["csr"] }
-taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos", version = "0.4.5" }
-taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.4.5" }
+taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos", version = "0.4.6" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.4.6" }
 console_error_panic_hook = "0.1"
 wasm-bindgen = { workspace = true }
 
