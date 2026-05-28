@@ -170,18 +170,16 @@ parts* of `react-beautiful-dnd`/`dnd-kit` as of `0.4.6` (pointer + keyboard +
 touch, a11y announcements, FLIP + drop-settle animations, modifiers, overlay,
 scroll-container auto-scroll, conditional drag/drop). What's left:
 
-- **Browser-level interaction tests.**
-  - ✅ Leptos side landed (post-`0.4.6`): `tests/interactions.rs` mounts
-    components into a fresh `<div>` per test, dispatches synthetic
-    `PointerEvent` / `KeyboardEvent`, and asserts the public signals — driven
-    in CI by the `browser-tests` job (`wasm-pack test --chrome --headless`).
-  - ⏳ Dioxus side: today the crate ships a `VirtualDom` rebuild smoke test
-    only; an equivalent synthetic-event suite needs `dioxus-web` mount-in-element
-    plumbing and is the next slice of this item.
+- ✅ **Browser-level interaction tests, both bindings.** `tests/interactions.rs`
+  in `taino-dnd-leptos` and `taino-dnd-dioxus` mounts components into a
+  dedicated `<div>` per test (`dioxus-web`'s `Config::rootname` for the Dioxus
+  side, `leptos::mount::mount_to` for the Leptos side), dispatches synthetic
+  `PointerEvent` / `KeyboardEvent`, yields to the framework's render loop, and
+  asserts the public signals. CI's `browser-tests` job drives both via
+  `wasm-pack test --chrome --headless`.
 - **Multi-drag** (select several items, drag them as a group) and
   **combining / merge** (drop one item *onto* another to nest/merge rather than
-  reorder). Larger-scope interaction models, deliberately out of scope so far;
-  revisit once the Dioxus interaction suite above is in place.
+  reorder). Larger-scope interaction models, deliberately out of scope so far.
 
 ---
 

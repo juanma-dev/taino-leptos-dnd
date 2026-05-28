@@ -33,6 +33,25 @@ web-sys = { workspace = true, features = [
 
 [dev-dependencies]
 wasm-bindgen-test = { workspace = true }
+# Extras only the browser interaction-test suite needs:
+# - `dioxus` with the `web` feature for real DOM mounting + event listeners.
+# - `gloo-timers` (futures feature) to yield to Dioxus's RAF-driven render
+#   loop between dispatch and assert.
+# - Extra web-sys features for synthetic `PointerEvent` / `KeyboardEvent`.
+dioxus = { workspace = true, features = ["web", "html", "hooks", "macro", "signals"] }
+dioxus-web = "0.6"
+gloo-timers = { version = "0.3", features = ["futures"] }
+web-sys = { workspace = true, features = [
+    "Event",
+    "EventInit",
+    "EventTarget",
+    "KeyboardEvent",
+    "KeyboardEventInit",
+    "MouseEventInit",
+    "Node",
+    "PointerEventInit",
+    "UiEventInit",
+] }
 
 [lints]
 workspace = true
