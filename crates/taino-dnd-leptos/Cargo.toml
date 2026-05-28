@@ -31,6 +31,21 @@ web-sys = { workspace = true, features = [
 
 [dev-dependencies]
 wasm-bindgen-test = { workspace = true }
+# Extra web-sys features needed only by the browser interaction-test suite
+# in `tests/interactions.rs` (constructing synthetic Pointer/Keyboard events
+# and dispatching them through the EventTarget interface). Kept in
+# dev-dependencies so the published crate's feature set stays slim.
+web-sys = { workspace = true, features = [
+    "Event",
+    "EventInit",
+    "EventTarget",
+    "KeyboardEvent",
+    "KeyboardEventInit",
+    "MouseEventInit",
+    "Node",
+    "PointerEventInit",
+    "UiEventInit",
+] }
 
 [lints]
 workspace = true

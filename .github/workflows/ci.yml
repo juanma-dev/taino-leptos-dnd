@@ -73,6 +73,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo check --workspace --target wasm32-unknown-unknown
 
+  browser-tests:
+    name: browser interaction tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          # wasm-pack drives `wasm-bindgen-test-runner` in a real headless
+          # Chrome (already installed on ubuntu-latest), the only place the
+          # synthetic-event tests in `tests/interactions.rs` will actually run
+          # (Node has no DOM). Pinned chromedriver isn't needed — wasm-pack
+          # downloads a matching one on first invocation.
+          tool: wasm-pack
+      - name: Leptos browser tests (synthetic pointer + keyboard)
+        run: wasm-pack test --chrome --headless -p taino-dnd-leptos
+      - name: Dioxus browser smoke test (VirtualDom rebuild)
+        run: wasm-pack test --chrome --headless -p taino-dnd-dioxus
+
   core-is-framework-free:
     name: core has no framework deps
     runs-on: ubuntu-latest

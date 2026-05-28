@@ -45,6 +45,24 @@ bash scripts/size-check.sh
 
 CI runs the same set. PRs that don't pass CI will not be reviewed.
 
+### Browser interaction tests
+
+Synthetic-event tests for both bindings live in `tests/interactions.rs`
+(Leptos) and `tests/web.rs` (Dioxus). They require a real browser DOM
+(Node has no `document`), so they're driven by `wasm-pack` against
+headless Chrome:
+
+```bash
+cargo install --locked wasm-pack
+wasm-pack test --chrome --headless -p taino-dnd-leptos
+wasm-pack test --chrome --headless -p taino-dnd-dioxus
+# drop --headless if you want to watch the events fire in a visible window
+```
+
+CI runs both via the `browser-tests` job; if you're iterating locally and
+don't have Chrome handy, you can compile-check the suite without running
+it: `cargo test -p taino-dnd-leptos --target wasm32-unknown-unknown --no-run`.
+
 ## Commits
 
 - Conventional Commits style is encouraged but not enforced:

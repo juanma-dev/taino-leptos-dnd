@@ -170,17 +170,18 @@ parts* of `react-beautiful-dnd`/`dnd-kit` as of `0.4.6` (pointer + keyboard +
 touch, a11y announcements, FLIP + drop-settle animations, modifiers, overlay,
 scroll-container auto-scroll, conditional drag/drop). What's left:
 
-- **Browser-level interaction tests.** The unit suite covers the core logic and
-  the bindings' reactive hook layer (collision, keyboard nav, announcements),
-  but not real synthetic pointer/keyboard event dispatch against a live DOM.
-  Those need a headless browser runner (`wasm-pack test --chrome` with
-  chromedriver, or `wasm-bindgen-test` in CI). This is the next natural
-  maturity step — it's what turns "the logic is right" into "the whole drag
-  works end-to-end under test."
+- **Browser-level interaction tests.**
+  - ✅ Leptos side landed (post-`0.4.6`): `tests/interactions.rs` mounts
+    components into a fresh `<div>` per test, dispatches synthetic
+    `PointerEvent` / `KeyboardEvent`, and asserts the public signals — driven
+    in CI by the `browser-tests` job (`wasm-pack test --chrome --headless`).
+  - ⏳ Dioxus side: today the crate ships a `VirtualDom` rebuild smoke test
+    only; an equivalent synthetic-event suite needs `dioxus-web` mount-in-element
+    plumbing and is the next slice of this item.
 - **Multi-drag** (select several items, drag them as a group) and
   **combining / merge** (drop one item *onto* another to nest/merge rather than
   reorder). Larger-scope interaction models, deliberately out of scope so far;
-  revisit once the test harness above is in place.
+  revisit once the Dioxus interaction suite above is in place.
 
 ---
 
