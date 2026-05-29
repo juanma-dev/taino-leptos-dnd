@@ -90,10 +90,15 @@ jobs:
           # (Node has no DOM). Pinned chromedriver isn't needed — wasm-pack
           # downloads a matching one on first invocation.
           tool: wasm-pack
+      # `wasm-pack test -p <crate>` doesn't work with virtual workspaces —
+      # wasm-pack parses the root `Cargo.toml` first and bails with
+      # `missing field 'package'`. Cd-ing into each crate sidesteps that.
       - name: Leptos browser tests (synthetic pointer + keyboard)
-        run: wasm-pack test --chrome --headless -p taino-dnd-leptos
-      - name: Dioxus browser smoke test (VirtualDom rebuild)
-        run: wasm-pack test --chrome --headless -p taino-dnd-dioxus
+        working-directory: crates/taino-dnd-leptos
+        run: wasm-pack test --chrome --headless
+      - name: Dioxus browser tests (synthetic pointer + keyboard + smoke)
+        working-directory: crates/taino-dnd-dioxus
+        run: wasm-pack test --chrome --headless
 
   core-is-framework-free:
     name: core has no framework deps
@@ -115,9 +120,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - uses: rustsec/audit-check@v2.0.0
+      - uses: Swatinem/rust-cache@v2
+      # `rustsec/audit-check@v2.0.0` needs `checks: write` (which the default
+      # GITHUB_TOKEN no longer carries) and treats every advisory the same.
+      # Running cargo-audit directly is simpler, lets us mirror the
+      # `RUSTSEC-2024-0436` ignore from deny.toml (paste is unmaintained,
+      # transitive from Leptos, no actionable fix on our side), and still
+      # fails the job on any real vulnerability.
+      - uses: taiki-e/install-action@v2
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          tool: cargo-audit
+      - run: cargo audit --ignore RUSTSEC-2024-0436
 
   deny:
     name: cargo deny
@@ -142,8 +155,11 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           # wasm-bindgen-cli version must match the wasm-bindgen crate in
-          # Cargo.lock (currently 0.2.121).
-          tool: wasm-bindgen-cli@0.2.121,binaryen
+          # Cargo.lock (currently 0.2.121). `binaryen` was dropped from
+          # install-action's supported list — we install it via apt below.
+          tool: wasm-bindgen-cli@0.2.121
+      - name: Install binaryen (provides wasm-opt)
+        run: sudo apt-get update && sudo apt-get install -y binaryen
       - run: bash scripts/size-check.sh
 
   docs:
