@@ -31,6 +31,10 @@ web-sys = { workspace = true, features = [
 
 [dev-dependencies]
 wasm-bindgen-test = { workspace = true }
+# `gloo-timers` lets the interaction-test suite yield to the event loop
+# after mount, so Leptos's `Effect::new`-scheduled droppable-registration
+# work runs before we start dispatching synthetic events.
+gloo-timers = { version = "0.3", features = ["futures"] }
 # Extra web-sys features needed only by the browser interaction-test suite
 # in `tests/interactions.rs` (constructing synthetic Pointer/Keyboard events
 # and dispatching them through the EventTarget interface). Kept in

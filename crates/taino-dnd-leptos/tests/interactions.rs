@@ -24,7 +24,12 @@
 // constructor's init-dict shape is wrong (statically known to be valid).
 // Treating them as test-time invariants keeps the harness readable; the
 // crate's `clippy::unwrap_used` lint is allowed in `#[cfg(test)]` anyway.
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    // wasm is single-threaded; `Send` bounds on async tests are noise.
+    clippy::future_not_send,
+)]
 
 use std::any::Any;
 use std::cell::Cell;
@@ -123,6 +128,16 @@ fn key(target: &web_sys::EventTarget, kind: &str, key: &str) {
 /// Find the first descendant of `root` with `data-handle="<name>"`.
 fn find(root: &HtmlElement, name: &str) -> web_sys::Element {
     root.query_selector(&format!("[data-handle='{name}']")).unwrap().unwrap()
+}
+
+/// Yield to the event loop long enough for Leptos to flush effects scheduled
+/// during the initial render — in particular `use_droppable`'s
+/// rect-measurement effect that subscribes to `node_ref.get()` and only fires
+/// once the element is in the document. Tests that read `ctx.over` /
+/// `ctx.droppables` after mount must `tick().await` first; otherwise the
+/// registry is still empty and `keyboard_step` finds no neighbour.
+async fn tick() {
+    gloo_timers::future::TimeoutFuture::new(16).await;
 }
 
 // ── Test app ───────────────────────────────────────────────────────────────
@@ -309,44 +324,26 @@ fn keyboard_escape_cancels_an_active_drag() {
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
-fn keyboard_arrow_steps_over_to_the_neighbor() {
+async fn keyboard_arrow_steps_over_to_the_neighbor() {
     let (m, ctx) = mount(|slot| {
         let ctx = provide_dnd_context();
         slot.set(Some(ctx));
         view! { <TwoRows /> }
     });
+    tick().await; // let use_droppable's rect-measurement effects flush
     let item = find(&m.root, "item-1");
-    let row1_dom =
-        m.root.query_selector("[data-handle='row-1']").unwrap().unwrap().get_bounding_client_rect();
-    let row2_dom =
-        m.root.query_selector("[data-handle='row-2']").unwrap().unwrap().get_bounding_client_rect();
-    // What's *actually* in the registry — this is what `keyboard_step` sees.
-    let registry = ctx.with_droppables(|m| {
-        let mut entries: Vec<_> = m.iter().map(|(k, r)| (k.0, r.y, r.height)).collect();
-        entries.sort_by_key(|e| e.0);
-        format!("{entries:?}")
-    });
-    let diag = format!(
-        "dom: row1=(y={}, h={}), row2=(y={}, h={}); registry={registry}",
-        row1_dom.y(),
-        row1_dom.height(),
-        row2_dom.y(),
-        row2_dom.height()
-    );
-
     key(&item, "keydown", " "); // pick up
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)), "after pickup; {diag}");
+    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)));
     key(&item, "keydown", "ArrowDown");
-    let after = ctx.over.get_untracked();
-    assert_eq!(after, Some(DroppableId(2)), "after ArrowDown; over={after:?}; {diag}");
+    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
-fn announcement_formatter_receives_lifecycle_events() {
+async fn announcement_formatter_receives_lifecycle_events() {
     // Capture every event the formatter sees via a shared `Mutex<Vec<_>>`.
-    // The formatter runs *synchronously* inside `announce_event` (the public
-    // `announce` signal write is the part that's deferred 50 ms); recording
-    // the event before that defer lets us assert without an async test.
+    // The formatter runs *synchronously* inside `announce_event`, so the
+    // sequence below is captured deterministically once the registry-prepare
+    // `tick().await` has fired.
     let seen: Arc<Mutex<Vec<AnnounceEvent>>> = Arc::new(Mutex::new(Vec::new()));
     let seen_for_fmt = seen.clone();
     let (m, _ctx) = mount(move |slot| {
@@ -358,6 +355,7 @@ fn announcement_formatter_receives_lifecycle_events() {
         });
         view! { <TwoRows /> }
     });
+    tick().await; // let use_droppable's effects flush so ArrowDown can find a neighbour
     let item = find(&m.root, "item-1");
 
     key(&item, "keydown", " "); // pick up
