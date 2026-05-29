@@ -330,12 +330,19 @@ async fn keyboard_arrow_steps_over_to_the_neighbor() {
         slot.set(Some(ctx));
         view! { <TwoRows /> }
     });
-    tick().await; // let use_droppable's rect-measurement effects flush
+    tick().await;
+    // Diagnostic: confirm whether the tick was enough for the registry to fill.
+    let registry = ctx.with_droppables(|m| {
+        let mut entries: Vec<_> = m.iter().map(|(k, r)| (k.0, r.y, r.height)).collect();
+        entries.sort_by_key(|e| e.0);
+        format!("{entries:?}")
+    });
     let item = find(&m.root, "item-1");
     key(&item, "keydown", " "); // pick up
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)));
+    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)), "after pickup; registry={registry}");
     key(&item, "keydown", "ArrowDown");
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
+    let after = ctx.over.get_untracked();
+    assert_eq!(after, Some(DroppableId(2)), "after ArrowDown; over={after:?}; registry={registry}");
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
