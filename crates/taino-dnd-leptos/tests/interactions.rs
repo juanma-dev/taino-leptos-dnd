@@ -316,26 +316,29 @@ fn keyboard_arrow_steps_over_to_the_neighbor() {
         view! { <TwoRows /> }
     });
     let item = find(&m.root, "item-1");
-    // Diagnostic: dump both droppables' measured rects so a failure tells us
-    // whether the rows actually stacked.
-    let row1_rect =
+    let row1_dom =
         m.root.query_selector("[data-handle='row-1']").unwrap().unwrap().get_bounding_client_rect();
-    let row2_rect =
+    let row2_dom =
         m.root.query_selector("[data-handle='row-2']").unwrap().unwrap().get_bounding_client_rect();
-    let rects = format!(
-        "row1=(y={}, h={}), row2=(y={}, h={})",
-        row1_rect.y(),
-        row1_rect.height(),
-        row2_rect.y(),
-        row2_rect.height()
+    // What's *actually* in the registry — this is what `keyboard_step` sees.
+    let registry = ctx.with_droppables(|m| {
+        let mut entries: Vec<_> = m.iter().map(|(k, r)| (k.0, r.y, r.height)).collect();
+        entries.sort_by_key(|e| e.0);
+        format!("{entries:?}")
+    });
+    let diag = format!(
+        "dom: row1=(y={}, h={}), row2=(y={}, h={}); registry={registry}",
+        row1_dom.y(),
+        row1_dom.height(),
+        row2_dom.y(),
+        row2_dom.height()
     );
 
     key(&item, "keydown", " "); // pick up
-    let after_pickup = ctx.over.get_untracked();
-    assert_eq!(after_pickup, Some(DroppableId(1)), "after pickup; {rects}");
+    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)), "after pickup; {diag}");
     key(&item, "keydown", "ArrowDown");
-    let after_arrow = ctx.over.get_untracked();
-    assert_eq!(after_arrow, Some(DroppableId(2)), "after ArrowDown; over={after_arrow:?}; {rects}");
+    let after = ctx.over.get_untracked();
+    assert_eq!(after, Some(DroppableId(2)), "after ArrowDown; over={after:?}; {diag}");
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
