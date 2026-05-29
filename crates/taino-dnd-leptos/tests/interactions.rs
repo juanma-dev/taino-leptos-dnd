@@ -330,19 +330,23 @@ async fn keyboard_arrow_steps_over_to_the_neighbor() {
         slot.set(Some(ctx));
         view! { <TwoRows /> }
     });
-    tick().await;
-    // Diagnostic: confirm whether the tick was enough for the registry to fill.
-    let registry = ctx.with_droppables(|m| {
-        let mut entries: Vec<_> = m.iter().map(|(k, r)| (k.0, r.y, r.height)).collect();
-        entries.sort_by_key(|e| e.0);
-        format!("{entries:?}")
-    });
+    let dump = |label: &str| -> String {
+        ctx.with_droppables(|m| {
+            let mut entries: Vec<_> = m.iter().map(|(k, r)| (k.0, r.y, r.height)).collect();
+            entries.sort_by_key(|e| e.0);
+            format!("{label}={entries:?}")
+        })
+    };
+    let before = dump("before-tick");
+    gloo_timers::future::TimeoutFuture::new(200).await;
+    let after_tick = dump("after-tick");
+    let diag = format!("{before}; {after_tick}");
     let item = find(&m.root, "item-1");
     key(&item, "keydown", " "); // pick up
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)), "after pickup; registry={registry}");
+    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)), "after pickup; {diag}");
     key(&item, "keydown", "ArrowDown");
     let after = ctx.over.get_untracked();
-    assert_eq!(after, Some(DroppableId(2)), "after ArrowDown; over={after:?}; registry={registry}");
+    assert_eq!(after, Some(DroppableId(2)), "after ArrowDown; over={after:?}; {diag}");
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
