@@ -147,8 +147,10 @@ fn Row(id: u64) -> impl IntoView {
     // before the individual style property is committed), which made
     // `spatial_neighbor(Down)` see no neighbour and broke the arrow-key
     // tests. A static string applies in one pass.
-    let row_style =
-        format!("position: absolute; left: 0; top: {}px; width: 100px; height: 50px;", (id - 1) * 50);
+    let row_style = format!(
+        "position: absolute; left: 0; top: {}px; width: 100px; height: 50px;",
+        (id - 1) * 50
+    );
     view! {
         <div
             node_ref=z.node_ref
@@ -314,10 +316,26 @@ fn keyboard_arrow_steps_over_to_the_neighbor() {
         view! { <TwoRows /> }
     });
     let item = find(&m.root, "item-1");
+    // Diagnostic: dump both droppables' measured rects so a failure tells us
+    // whether the rows actually stacked.
+    let row1_rect =
+        m.root.query_selector("[data-handle='row-1']").unwrap().unwrap().get_bounding_client_rect();
+    let row2_rect =
+        m.root.query_selector("[data-handle='row-2']").unwrap().unwrap().get_bounding_client_rect();
+    let rects = format!(
+        "row1=(y={}, h={}), row2=(y={}, h={})",
+        row1_rect.y(),
+        row1_rect.height(),
+        row2_rect.y(),
+        row2_rect.height()
+    );
+
     key(&item, "keydown", " "); // pick up
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(1)));
+    let after_pickup = ctx.over.get_untracked();
+    assert_eq!(after_pickup, Some(DroppableId(1)), "after pickup; {rects}");
     key(&item, "keydown", "ArrowDown");
-    assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
+    let after_arrow = ctx.over.get_untracked();
+    assert_eq!(after_arrow, Some(DroppableId(2)), "after ArrowDown; over={after_arrow:?}; {rects}");
 }
 
 #[wasm_bindgen_test::wasm_bindgen_test]
