@@ -60,7 +60,6 @@ echo "==> Running wasm-opt -Oz..."
 wasm-opt \
     -Oz \
     --enable-bulk-memory \
-    --enable-bulk-memory-opt \
     --enable-mutable-globals \
     --enable-nontrapping-float-to-int \
     --enable-sign-ext \
@@ -69,6 +68,11 @@ wasm-opt \
     --strip-debug \
     --strip-producers \
     -o "$OPTIMIZED" "$BG_WASM"
+# Note: `--enable-bulk-memory-opt` was removed in 2026-05 — it requires a very
+# recent binaryen (118+) and isn't available in the binaryen Ubuntu ships via
+# apt. It's an optimisation flag, not a wasm-feature one (`--enable-bulk-memory`
+# above already handles the feature), so dropping it just leaves a small amount
+# of bulk-memory-related optimisation on the table.
 
 # stat invocation differs between Linux (-c%s) and macOS (-f%z).
 file_size() {

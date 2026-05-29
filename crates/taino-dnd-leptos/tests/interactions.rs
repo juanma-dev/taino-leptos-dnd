@@ -141,12 +141,19 @@ fn Row(id: u64) -> impl IntoView {
     let z = use_droppable(DroppableId(id));
     let row_data = id.to_string();
     let item_data = id.to_string();
+    // Bake `top` into the static `style` string. Using a reactive `style:top`
+    // alongside `style=` left the wrappers stacked at y=0 in headless Chrome
+    // (the effect that measures the rect for the droppable registry runs
+    // before the individual style property is committed), which made
+    // `spatial_neighbor(Down)` see no neighbour and broke the arrow-key
+    // tests. A static string applies in one pass.
+    let row_style =
+        format!("position: absolute; left: 0; top: {}px; width: 100px; height: 50px;", (id - 1) * 50);
     view! {
         <div
             node_ref=z.node_ref
             data-handle=format!("row-{row_data}")
-            style="position: absolute; left: 0; width: 100px; height: 50px;"
-            style:top=move || format!("{}px", (id - 1) * 50)
+            style=row_style
         >
             <div
                 node_ref=d.node_ref
