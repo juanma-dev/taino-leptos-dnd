@@ -176,7 +176,14 @@ scroll-container auto-scroll, conditional drag/drop). What's left:
   side, `leptos::mount::mount_to` for the Leptos side), dispatches synthetic
   `PointerEvent` / `KeyboardEvent`, yields to the framework's render loop, and
   asserts the public signals. CI's `browser-tests` job drives both via
-  `wasm-pack test --chrome --headless`.
+  `wasm-pack test --chrome --headless`. Known limitation on the Leptos side:
+  two tests that depend on `use_droppable`'s rect-measurement `Effect::new`
+  having fired are marked `#[ignore]` — in the `mount_to` + wasm-bindgen-test
+  setup the effect scheduler never kicks (the `ctx.droppables` registry stays
+  empty even after a 200 ms yield), so `keyboard_step(Down)` finds no
+  neighbour. The library itself works in production (the kanban example
+  proves it); the same logic is covered by the native unit tests in
+  `src/context.rs`. Worth revisiting when bumping Leptos.
 - **Multi-drag** (select several items, drag them as a group) and
   **combining / merge** (drop one item *onto* another to nest/merge rather than
   reorder). Larger-scope interaction models, deliberately out of scope so far.
