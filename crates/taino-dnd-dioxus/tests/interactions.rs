@@ -250,7 +250,9 @@ async fn pointer_up_after_real_drag_enters_dropping_and_records_last_drop() {
     pointer(&item, "pointerup", 80.0, 10.0);
     tick().await;
     assert!(matches!(*ctx.state.peek(), DragState::Dropping { .. }));
-    let drop = ctx.last_drop.peek().expect("a drop was recorded");
+    // `DropResult` is no longer `Copy` (gained `additional: Vec<DraggableId>`
+    // for multi-drag), so the peek guard must be cloned out.
+    let drop = ctx.last_drop.peek().clone().expect("a drop was recorded");
     assert_eq!(drop.draggable, DraggableId(1));
 }
 

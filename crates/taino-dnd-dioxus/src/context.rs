@@ -4,7 +4,7 @@
 //! its provider chain. Install one with [`provide_dnd_context`]; consume
 //! it from any descendant with [`use_dnd_context`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
 use dioxus::prelude::*;
@@ -92,6 +92,28 @@ pub struct DndContext {
     /// Displacement memos subscribe to this instead of raw `state`,
     /// avoiding 18× re-evaluations per pointermove event.
     pub dragged_droppable: Memo<Option<DroppableId>>,
+    /// **App-managed** multi-selection of draggables. The library never
+    /// writes to this signal — your app wires its own selection UX
+    /// (Ctrl-click, Shift-click, marquee select, …) and pushes the result
+    /// here. When a drag starts on an item that's currently in this set
+    /// *and* the set has more than one element, the whole selection drags
+    /// together as a group. Default: empty (single-item drag, exactly the
+    /// pre-multi-drag behaviour).
+    ///
+    /// Mirrors `taino_dnd_leptos::DndContext::selection`. See
+    /// [`DropResult::additional`] for the rest of the group reported back at
+    /// drop time, and [`DndContext::is_being_dragged`] to drive "fade the
+    /// other group items in their original slots" styling.
+    pub selection: Signal<HashSet<DraggableId>>,
+    /// The items currently being dragged. Populated by `use_draggable`'s
+    /// pointer/keyboard pickup from the [`Self::selection`] snapshot at drag
+    /// start: a singleton `[id]` for single drags, the full selection
+    /// (primary first) for multi-drags. Cleared back to `Vec::new()` when
+    /// state returns to `Idle`. **Library writes only** — the app should
+    /// read it (e.g. to render a "+N more" badge on the drag overlay) but
+    /// never `set` it. The most common read is via
+    /// [`DndContext::is_being_dragged`].
+    pub dragged_group: Signal<Vec<DraggableId>>,
 }
 
 /// Duration of the drop-settle overlay animation, in milliseconds. The
@@ -106,19 +128,81 @@ pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 ///
 /// Mirrors `taino_dnd_leptos::DropResult` so user code that reads either
 /// binding can share the consume-the-drop helper unchanged.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `additional` is empty for single-item drags. For multi-drag (when
+/// [`DndContext::selection`] held more than one item at drag start and the
+/// drag started on a selected item), `additional` carries the *other* group
+/// members in the order they appeared in the selection — the app applies the
+/// move to `draggable` and to each `additional` id in turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropResult {
-    /// The draggable that was dropped.
+    /// The draggable the user actually pressed on / picked up — the *primary*
+    /// of the drag. Always present, even in multi-drag.
     pub draggable: DraggableId,
     /// The droppable the pointer was over at the moment of release, if
     /// any. `None` means the drag ended outside any registered droppable.
     pub over: Option<DroppableId>,
+    /// Other items being dragged together with `draggable`, for multi-drag.
+    /// Empty for single-item drags. Preserves [`DndContext::selection`]'s
+    /// iteration order, excluding the primary.
+    pub additional: Vec<DraggableId>,
 }
 
 impl DndContext {
     /// Clear [`Self::last_drop`] after the caller has consumed it.
     pub fn clear_last_drop(mut self) {
         self.last_drop.set(None);
+    }
+
+    /// `true` if `id` is part of the currently-active drag — either the
+    /// primary draggable, or a non-primary group member in a multi-drag.
+    /// Use this in components to fade the other selected items in their
+    /// original slots while the group moves.
+    ///
+    /// **Reactive**: subscribes the calling memo / `use_effect` to
+    /// `dragged_group` (via `.read()`), so styling updates as the drag
+    /// starts and ends. For a one-shot untracked read, use
+    /// `ctx.dragged_group.peek().contains(&id)` directly.
+    pub fn is_being_dragged(self, id: DraggableId) -> bool {
+        self.dragged_group.read().contains(&id)
+    }
+
+    /// `true` if `id` is in [`Self::selection`]. Convenience over
+    /// `ctx.selection.read().contains(&id)` — same thing, easier to read
+    /// in components driving multi-select highlighting.
+    pub fn is_selected(self, id: DraggableId) -> bool {
+        self.selection.read().contains(&id)
+    }
+
+    /// Build [`Self::dragged_group`] from the current selection at drag
+    /// start. If `primary` is in the selection and the selection has more
+    /// than one element, the group is `[primary, ...others]` (preserving
+    /// selection iteration order, primary first). Otherwise it's just
+    /// `[primary]` — single-item drag.
+    pub(crate) fn begin_drag_group(mut self, primary: DraggableId) {
+        let group = {
+            let sel = self.selection.peek();
+            if sel.len() > 1 && sel.contains(&primary) {
+                let mut g = Vec::with_capacity(sel.len());
+                g.push(primary);
+                g.extend(sel.iter().copied().filter(|id| *id != primary));
+                g
+            } else {
+                vec![primary]
+            }
+        };
+        self.dragged_group.set(group);
+    }
+
+    /// Snapshot the current group and clear it. Called from `on_pointer_up`
+    /// / keyboard drop so the rest of the group rides along in
+    /// [`DropResult::additional`].
+    pub(crate) fn take_drag_group(mut self) -> Vec<DraggableId> {
+        let group = self.dragged_group.peek().clone();
+        if !group.is_empty() {
+            self.dragged_group.set(Vec::new());
+        }
+        group
     }
 
     /// Read **and** clear [`Self::last_drop`] in one call, returning the
@@ -148,7 +232,11 @@ impl DndContext {
     /// });
     /// ```
     pub fn take_last_drop(mut self) -> Option<DropResult> {
-        let value = *self.last_drop.read();
+        // `.read().clone()`: the read borrow dies at the end of this statement
+        // (the cloned Option is the binding), so the subsequent `set(None)`
+        // doesn't conflict. `DropResult` is no longer `Copy` since it gained
+        // `additional: Vec<DraggableId>` (multi-drag).
+        let value = self.last_drop.read().clone();
         if value.is_some() {
             self.last_drop.set(None);
         }
@@ -451,6 +539,8 @@ pub fn provide_dnd_context() -> DndContext {
     let auto_scroll = use_signal(AutoScrollConfig::default);
     let elements = use_signal::<HashMap<DroppableId, Rc<MountedData>>>(HashMap::new);
     let raf_scrolling = use_signal(|| false);
+    let selection = use_signal::<HashSet<DraggableId>>(HashSet::new);
+    let dragged_group = use_signal::<Vec<DraggableId>>(Vec::new);
     // Deduped dragged-droppable memo: only changes on drag start/end,
     // NOT on every pointermove. Displacement memos subscribe to this
     // instead of raw `state` to avoid N re-evaluations per move.
@@ -473,16 +563,24 @@ pub fn provide_dnd_context() -> DndContext {
         elements,
         raf_scrolling,
         dragged_droppable,
+        selection,
+        dragged_group,
     };
     use_context_provider(|| ctx);
     crate::autoscroll::install(ctx);
 
-    // When state returns to Idle, clear the cached element rect.
+    // When state returns to Idle, clear the per-drag scratch state so it
+    // can't bleed into the next drag.
     use_effect(move || {
         if matches!(*ctx.state.read(), DragState::Idle) {
             let mut rect = ctx.dragged_element_rect;
             if rect.peek().is_some() {
                 rect.set(None);
+            }
+            // Cancel paths don't go through `take_drag_group`; sweep here.
+            let mut group = ctx.dragged_group;
+            if !group.peek().is_empty() {
+                group.set(Vec::new());
             }
         }
     });

@@ -66,6 +66,10 @@ impl UseDraggable {
             // to clamp against and the keyboard sensor can compute a
             // synthetic `at` position if it takes over mid-drag.
             self.ctx.dragged_element_rect.set(self.element_rect());
+            // Snapshot the multi-selection at drag start. Single-drag callers
+            // see this set to `[self.id]`; multi-drag callers (selection
+            // contained `self.id` and had >1 element) see the whole group.
+            self.ctx.begin_drag_group(self.id);
             #[cfg(target_arch = "wasm32")]
             self.capture_pointer(&ev);
         }
@@ -103,9 +107,12 @@ impl UseDraggable {
         // Genuine drop (not a click) records its destination and the slot the
         // overlay should glide to during the drop-settle animation.
         let to = if matches!(current, DragState::Dragging { .. }) {
-            self.ctx
-                .last_drop
-                .set(Some(DropResult { draggable: self.id, over: *self.ctx.over.peek() }));
+            let additional = self.additional_from_group();
+            self.ctx.last_drop.set(Some(DropResult {
+                draggable: self.id,
+                over: *self.ctx.over.peek(),
+                additional,
+            }));
             Some(self.drop_landing())
         } else {
             None
@@ -185,7 +192,12 @@ impl UseDraggable {
             ev.prevent_default();
             if let Ok(state) = transition(current, DragEvent::PointerUp, DEFAULT_DRAG_THRESHOLD) {
                 let target = *self.ctx.over.peek();
-                self.ctx.last_drop.set(Some(DropResult { draggable: self.id, over: target }));
+                let additional = self.additional_from_group();
+                self.ctx.last_drop.set(Some(DropResult {
+                    draggable: self.id,
+                    over: target,
+                    additional,
+                }));
                 let to = self.drop_landing();
                 self.ctx.state.set(state);
                 if matches!(state, DragState::Dropping { .. }) {
@@ -264,11 +276,22 @@ impl UseDraggable {
             self.ctx.last_drop.set(None);
             self.ctx.state.set(state);
             self.ctx.dragged_element_rect.set(self.element_rect());
+            // Snapshot the multi-selection at drag start (same logic as the
+            // pointer-down path); single-item drags get `[self.id]`.
+            self.ctx.begin_drag_group(self.id);
             // Default `over` to the draggable's own droppable id if
             // registered, so the user has a target to navigate from.
             self.ctx.over.set(Some(DroppableId(self.id.0)));
             self.ctx.announce_event(AnnounceEvent::PickedUp { draggable: self.id });
         }
+    }
+
+    /// Build the [`DropResult::additional`] vector: everything in the active
+    /// drag group except the primary `self.id`. Single-item drags return
+    /// `Vec::new()`. Clears `dragged_group` as a side effect (call exactly
+    /// once per drop, from the `pointerup` / keyboard-drop path).
+    fn additional_from_group(self) -> Vec<DraggableId> {
+        self.ctx.take_drag_group().into_iter().filter(|id| *id != self.id).collect()
     }
 
     #[cfg(target_arch = "wasm32")]

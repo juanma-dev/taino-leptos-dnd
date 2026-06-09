@@ -3,7 +3,7 @@
 //! Every region that wants to use the drag-and-drop hooks needs a [`DndContext`]
 //! available via Leptos's context API. Install one with [`provide_dnd_context`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use leptos::prelude::*;
@@ -73,6 +73,26 @@ pub struct DndContext {
     /// Defaults to [`default_announcement`] (raw numeric ids); replace it with
     /// [`DndContext::set_announcement_formatter`] to emit human-readable labels.
     pub(crate) announcement_formatter: StoredValue<Formatter>,
+    /// **App-managed** multi-selection of draggables. The library never writes
+    /// to this signal — your app wires its own selection UX (Ctrl-click,
+    /// Shift-click, marquee select, …) and pushes the result here. When a
+    /// drag starts on an item that's currently in this set *and* the set has
+    /// more than one element, the whole selection drags together as a group.
+    /// Default: empty (single-item drag, exactly the pre-multi-drag behaviour).
+    ///
+    /// See also: [`DropResult::additional`] for the rest of the group reported
+    /// back at drop time, and [`DndContext::is_being_dragged`] to drive
+    /// "fade the other group items in their original slots" styling.
+    pub selection: RwSignal<HashSet<DraggableId>>,
+    /// The items currently being dragged. Populated by `use_draggable`'s
+    /// pointer/keyboard pickup from the [`Self::selection`] snapshot at drag
+    /// start: a singleton `[id]` for single drags, the full selection
+    /// (primary first) for multi-drags. Cleared back to `Vec::new()` when
+    /// state returns to `Idle`. **Library writes only** — the app should
+    /// read it (e.g. to render a "+N more" badge on the drag overlay) but
+    /// never `set` it. The most common read is via
+    /// [`DndContext::is_being_dragged`].
+    pub dragged_group: RwSignal<Vec<DraggableId>>,
 }
 
 /// Duration of the drop-settle overlay animation, in milliseconds. The
@@ -84,13 +104,24 @@ pub struct DndContext {
 pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 
 /// The outcome of a completed drag interaction.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `additional` is empty for single-item drags. For multi-drag (when
+/// [`DndContext::selection`] held more than one item at drag start and the
+/// drag started on a selected item), `additional` carries the *other* group
+/// members in the order they appeared in the selection — the app applies the
+/// move to `draggable` and to each `additional` id in turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropResult {
-    /// The draggable that was dropped.
+    /// The draggable the user actually pressed on / picked up — the *primary*
+    /// of the drag. Always present, even in multi-drag.
     pub draggable: DraggableId,
     /// The droppable the pointer was over at the moment of release, if any.
     /// `None` means the drag ended outside any registered droppable.
     pub over: Option<DroppableId>,
+    /// Other items being dragged together with `draggable`, for multi-drag.
+    /// Empty for single-item drags. Preserves [`DndContext::selection`]'s
+    /// iteration order, excluding the primary.
+    pub additional: Vec<DraggableId>,
 }
 
 impl Default for DndContext {
@@ -108,6 +139,8 @@ impl Default for DndContext {
             dragged_element_rect: RwSignal::new(None),
             drop_target: RwSignal::new(None),
             announcement_formatter: StoredValue::new(Arc::new(default_announcement) as Formatter),
+            selection: RwSignal::new(HashSet::new()),
+            dragged_group: RwSignal::new(Vec::new()),
         }
     }
 }
@@ -177,6 +210,56 @@ impl DndContext {
     /// Clear [`DndContext::last_drop`] after the caller has consumed it.
     pub fn clear_last_drop(self) {
         self.last_drop.set(None);
+    }
+
+    /// `true` if `id` is part of the currently-active drag — either the
+    /// primary draggable, or a non-primary group member in a multi-drag.
+    /// Use this in components to fade the other selected items in their
+    /// original slots while the group moves.
+    ///
+    /// **Reactive**: subscribes the calling effect / memo to `dragged_group`,
+    /// so a `class:in-group=move || ctx.is_being_dragged(id)` updates as the
+    /// drag starts and ends. If you want a one-shot untracked read, use
+    /// `ctx.dragged_group.with_untracked(|g| g.contains(&id))` directly.
+    pub fn is_being_dragged(self, id: DraggableId) -> bool {
+        self.dragged_group.with(|g| g.contains(&id))
+    }
+
+    /// `true` if `id` is in [`Self::selection`]. Convenience over
+    /// `ctx.selection.with(|s| s.contains(&id))` — same thing, easier to
+    /// read in components driving multi-select highlighting.
+    pub fn is_selected(self, id: DraggableId) -> bool {
+        self.selection.with(|s| s.contains(&id))
+    }
+
+    /// Build [`Self::dragged_group`] from the current selection at drag
+    /// start. If `primary` is in the selection and the selection has more
+    /// than one element, the group is `[primary, ...others]` (preserving
+    /// selection iteration order, primary first). Otherwise it's just
+    /// `[primary]` — single-item drag.
+    pub(crate) fn begin_drag_group(self, primary: DraggableId) {
+        let group = self.selection.with_untracked(|sel| {
+            if sel.len() > 1 && sel.contains(&primary) {
+                let mut g = Vec::with_capacity(sel.len());
+                g.push(primary);
+                g.extend(sel.iter().copied().filter(|id| *id != primary));
+                g
+            } else {
+                vec![primary]
+            }
+        });
+        self.dragged_group.set(group);
+    }
+
+    /// Snapshot the current group as `(primary, additional)` and clear it.
+    /// Called from `on_pointer_up` / keyboard drop so the rest of the group
+    /// rides along in [`DropResult::additional`].
+    pub(crate) fn take_drag_group(self) -> Vec<DraggableId> {
+        let group = self.dragged_group.get_untracked();
+        if !group.is_empty() {
+            self.dragged_group.set(Vec::new());
+        }
+        group
     }
 
     /// Read **and** clear [`DndContext::last_drop`] in one call,
@@ -424,11 +507,15 @@ pub fn provide_dnd_context() -> DndContext {
     let ctx = DndContext::default();
     provide_context(ctx);
     crate::autoscroll::install(ctx);
-    // Whenever a drag ends and the state returns to Idle, clear the dragged
-    // element rect so a stale rect can't influence the next drag.
+    // Whenever a drag ends and the state returns to Idle, clear the per-drag
+    // scratch state so it can't bleed into the next drag.
     Effect::new(move |_| {
         if matches!(ctx.state.get(), DragState::Idle) {
             ctx.dragged_element_rect.set(None);
+            // Cancel paths don't go through `take_drag_group`; sweep here.
+            if !ctx.dragged_group.with_untracked(Vec::is_empty) {
+                ctx.dragged_group.set(Vec::new());
+            }
         }
     });
     ctx
@@ -531,6 +618,88 @@ mod tests {
             ctx.shift_droppable_rects(-5.0, -8.0);
             let r = ctx.droppables.with_untracked(|m| m[&DroppableId(1)]);
             assert!((r.x - 5.0).abs() < f64::EPSILON && (r.y - 2.0).abs() < f64::EPSILON);
+        });
+    }
+
+    // ── multi-drag ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn begin_drag_group_with_empty_selection_is_singleton() {
+        with_ctx(|ctx| {
+            ctx.begin_drag_group(DraggableId(7));
+            assert_eq!(ctx.dragged_group.get_untracked(), vec![DraggableId(7)]);
+        });
+    }
+
+    #[test]
+    fn begin_drag_group_with_primary_not_in_selection_is_singleton() {
+        with_ctx(|ctx| {
+            // Selection holds 1 and 2, but the user starts the drag on 99 —
+            // an *unselected* item. The library must ignore the selection in
+            // that case and carry only the primary.
+            ctx.selection.set([DraggableId(1), DraggableId(2)].into_iter().collect());
+            ctx.begin_drag_group(DraggableId(99));
+            assert_eq!(ctx.dragged_group.get_untracked(), vec![DraggableId(99)]);
+        });
+    }
+
+    #[test]
+    fn begin_drag_group_with_primary_in_multi_selection_carries_the_group() {
+        with_ctx(|ctx| {
+            ctx.selection
+                .set([DraggableId(1), DraggableId(2), DraggableId(3)].into_iter().collect());
+            ctx.begin_drag_group(DraggableId(2));
+            let group = ctx.dragged_group.get_untracked();
+            assert_eq!(group.len(), 3);
+            // Primary is always first; the others follow in selection-iteration
+            // order (HashSet doesn't guarantee a stable order, so we compare
+            // the rest as a set).
+            assert_eq!(group[0], DraggableId(2));
+            let rest: HashSet<DraggableId> = group[1..].iter().copied().collect();
+            assert_eq!(rest, [DraggableId(1), DraggableId(3)].into_iter().collect());
+        });
+    }
+
+    #[test]
+    fn begin_drag_group_singleton_when_selection_has_only_the_primary() {
+        // Edge case: a single-item selection should *not* trigger multi-drag,
+        // because there's nothing to drag along. Same outcome as no selection.
+        with_ctx(|ctx| {
+            ctx.selection.set(std::iter::once(DraggableId(4)).collect());
+            ctx.begin_drag_group(DraggableId(4));
+            assert_eq!(ctx.dragged_group.get_untracked(), vec![DraggableId(4)]);
+        });
+    }
+
+    #[test]
+    fn is_being_dragged_reports_every_group_member() {
+        with_ctx(|ctx| {
+            ctx.selection.set([DraggableId(1), DraggableId(2)].into_iter().collect());
+            ctx.begin_drag_group(DraggableId(1));
+            assert!(ctx.is_being_dragged(DraggableId(1)));
+            assert!(ctx.is_being_dragged(DraggableId(2)));
+            assert!(!ctx.is_being_dragged(DraggableId(99)));
+        });
+    }
+
+    #[test]
+    fn is_selected_reflects_the_selection_signal() {
+        with_ctx(|ctx| {
+            assert!(!ctx.is_selected(DraggableId(1)));
+            ctx.selection.set(std::iter::once(DraggableId(1)).collect());
+            assert!(ctx.is_selected(DraggableId(1)));
+            assert!(!ctx.is_selected(DraggableId(2)));
+        });
+    }
+
+    #[test]
+    fn take_drag_group_returns_and_clears_then_no_ops() {
+        with_ctx(|ctx| {
+            ctx.begin_drag_group(DraggableId(5));
+            assert_eq!(ctx.take_drag_group(), vec![DraggableId(5)]);
+            assert!(ctx.dragged_group.get_untracked().is_empty());
+            // Second call: nothing to take, returns empty, no spurious write.
+            assert!(ctx.take_drag_group().is_empty());
         });
     }
 }

@@ -1,6 +1,6 @@
 [package]
-name = "example-sortable-list"
-description = "Minimal sortable-list demo for taino-leptos-dnd."
+name = "example-multi-select-list"
+description = "Multi-select drag demo for taino-leptos-dnd: Ctrl/Shift-click to select, drag the group together."
 version = "0.5.0"
 edition = "2021"
 publish = false

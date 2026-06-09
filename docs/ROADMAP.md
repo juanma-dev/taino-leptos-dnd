@@ -184,9 +184,16 @@ scroll-container auto-scroll, conditional drag/drop). What's left:
   neighbour. The library itself works in production (the kanban example
   proves it); the same logic is covered by the native unit tests in
   `src/context.rs`. Worth revisiting when bumping Leptos.
-- **Multi-drag** (select several items, drag them as a group) and
-  **combining / merge** (drop one item *onto* another to nest/merge rather than
-  reorder). Larger-scope interaction models, deliberately out of scope so far.
+- ✅ **Multi-drag, both bindings.** Shipped in `0.5.0` (2026-06-02): apps
+  push their selection to the new `DndContext::selection`, the library
+  snapshots the whole selection into `dragged_group` when a drag starts on
+  a selected item, and `DropResult.additional` reports the rest of the
+  group at drop time. New helpers `is_selected` / `is_being_dragged` cover
+  the styling, and `examples/multi-select-list` demonstrates the
+  Finder/Explorer click semantics + a `+N more` badge on the overlay.
+- **Combining / merge** (drop one item *onto* another to nest/merge rather
+  than reorder). Larger-scope interaction model, still deliberately out of
+  scope.
 
 ---
 

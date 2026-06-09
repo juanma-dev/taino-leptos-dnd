@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-06-02
+### Added
+- **Multi-drag, both bindings.** Drag several items as a single group.
+  The app owns the selection (Ctrl/Cmd-click, Shift-click, marquee, …
+  it's app UX), pushing it to the new `DndContext::selection` signal —
+  a `RwSignal<HashSet<DraggableId>>` on Leptos, a
+  `Signal<HashSet<DraggableId>>` on Dioxus. When `pointerdown` /
+  keyboard-pickup fires on an item that's in the selection *and* the
+  selection has more than one member, the library snapshots the
+  whole selection into the new `DndContext::dragged_group` and
+  carries it through the drag; at drop time the rest of the group
+  rides along inside the new `DropResult::additional` field. Single-
+  item drags are unchanged (`additional` is empty), so existing apps
+  pick the feature up incrementally without code changes — they just
+  start writing to `ctx.selection`.
+  - New helpers: `DndContext::is_selected(id)`,
+    `DndContext::is_being_dragged(id)`, both reactive so
+    `class:selected=…` / `class:in-group=…` styling works out of the
+    box.
+  - `DndContext::dragged_group` is `pub` (write-only by the library;
+    apps read it to render the "+N more" badge on the drag overlay).
+  - New example: `examples/multi-select-list` (Leptos). 15-row list
+    with macOS-Finder/Windows-Explorer style click semantics
+    (plain / Ctrl-Cmd / Shift), a deferred-collapse trick so
+    plain-clicking inside a multi-selection doesn't lose the group
+    before the drag starts, and a `+N more` badge on the overlay.
+
+### Changed
+- **Breaking: `DropResult` no longer implements `Copy`.** It gained
+  `additional: Vec<DraggableId>` for multi-drag, and `Vec` isn't
+  `Copy`. Users who copied the value out of the signal (e.g.
+  `*ctx.last_drop.read()` on Dioxus) now need to clone — the
+  bindings' own `take_last_drop()` helpers already do this for you,
+  so the recommended pattern is unchanged:
+  ```rust
+  if let Some(drop) = ctx.take_last_drop() { /* … */ }
+  ```
+
 ## [0.4.6] - 2026-05-26
 ### Added
 - **Conditional drag/drop (`disabled`), both bindings.** New

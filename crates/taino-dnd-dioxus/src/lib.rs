@@ -36,7 +36,7 @@
 //! Wherever possible the API mirrors `taino-dnd-leptos` 1:1 so users
 //! who know one binding can read the other.
 
-#![doc(html_root_url = "https://docs.rs/taino-dnd-dioxus/0.4.6")]
+#![doc(html_root_url = "https://docs.rs/taino-dnd-dioxus/0.5.0")]
 // Parity with `taino-dnd-leptos`: no `unwrap()` / `expect()` / `panic!` in
 // public-facing paths. The one documented exception (`use_dnd_context`'s
 // missing-provider panic, raised by Dioxus's `use_context`) is inherent to
