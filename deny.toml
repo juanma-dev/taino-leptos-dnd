@@ -11,6 +11,12 @@ ignore = [
     # No security issue, no actionable fix on our side. Re-evaluate when
     # we bump Leptos.
     "RUSTSEC-2024-0436",
+    # `proc-macro-error2` is unmaintained (the fork itself is now archived,
+    # as is its parent `proc-macro-error`). Pulled in transitively by
+    # Leptos's `leptos_macro` via `rstml` → `syn_derive`. No security
+    # issue, no fix on our side. Mirror to the `cargo audit --ignore` in
+    # the CI workflow when bumping.
+    "RUSTSEC-2026-0173",
 ]
 
 [licenses]
