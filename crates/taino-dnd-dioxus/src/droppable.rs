@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use dioxus::prelude::*;
-use taino_dnd_core::{detect_axis, live_displacements, Axis, DroppableId, Rect};
+use taino_dnd_core::{detect_axis, live_displacements, Axis, DraggableId, DroppableId, Rect};
 
 use crate::context::{use_dnd_context, DndContext};
 
@@ -137,6 +137,16 @@ pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppab
         let Some(dragged) = *ctx.dragged_droppable.read() else {
             return (0.0, 0.0);
         };
+        // Multi-drag: non-primary items in the dragged group travel *with*
+        // the primary, they don't shift in place. Skip the displacement
+        // maths for them so the drop-preview doesn't make them look
+        // stationary-but-displaced. (Single-drag path: `dragged_group`
+        // has length 1, the guard short-circuits to `false`.)
+        if ctx.dragged_group.read().len() > 1
+            && ctx.dragged_group.read().contains(&DraggableId(id.0))
+        {
+            return (0.0, 0.0);
+        }
         let over = *ctx.over.read();
         let map = ctx.droppables.peek();
         let mut items: Vec<(DroppableId, Rect)> = map.iter().map(|(d, r)| (*d, *r)).collect();

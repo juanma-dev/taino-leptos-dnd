@@ -1,15 +1,15 @@
 [package]
 name = "example-multi-zone"
 description = "Multi-zone demo for taino-leptos-dnd: vertical lists with scroll plus horizontal task bars in a single drag context."
-version = "0.5.0"
+version = "0.5.1"
 edition = "2021"
 publish = false
 license.workspace = true
 
 [dependencies]
 leptos = { workspace = true, features = ["csr"] }
-taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos", version = "0.5.0" }
-taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.5.0" }
+taino-dnd-leptos = { path = "../../crates/taino-dnd-leptos", version = "0.5.1" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.5.1" }
 console_error_panic_hook = "0.1"
 wasm-bindgen = { workspace = true }
 

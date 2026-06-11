@@ -124,6 +124,19 @@ pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppab
             taino_dnd_core::DragState::Dragging { id, .. } => DroppableId(id.0),
             _ => return (0.0, 0.0),
         };
+        // Multi-drag: non-primary items in the dragged group travel *with*
+        // the primary, they don't shift in place. Skip the displacement
+        // maths for them so the drop-preview doesn't make them look
+        // stationary-but-displaced. The primary itself is handled by
+        // `live_displacements` (its slot stays anchored at the source).
+        // The non-group neighbours' visual shift is still one slot wide
+        // — under-shifts for big groups, but that's a cosmetic preview
+        // detail; the drop math (`reorder_group` in the multi-select demo)
+        // is unaffected.
+        if ctx.dragged_group.with(|g| g.len() > 1 && g.contains(&taino_dnd_core::DraggableId(id.0)))
+        {
+            return (0.0, 0.0);
+        }
         let over = ctx.over.get();
         ctx.droppables.with(|map| {
             // Sort by axis-relevant edge so the index order matches the

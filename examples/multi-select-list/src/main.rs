@@ -239,32 +239,49 @@ fn Row(item: Item, on_click: impl Fn(DraggableId, bool, bool) + 'static + Copy) 
     }
 }
 
-/// Move a *group* of items so they end up contiguous, just before `target`.
+/// Move a *group* of items so they end up contiguous, at the target's slot,
+/// mirroring the single-drag semantic from `examples/sortable-list`.
 ///
 /// `group` is the dragged group as returned by the binding: `[primary,
-/// ...additional]`, in selection iteration order. The items are removed from
-/// their current positions and reinserted **in their current vec order** at
-/// the target slot, which makes the result feel stable regardless of how
-/// scattered the selection was.
+/// ...additional]`, in selection iteration order. The items are reinserted
+/// **in their current vec order** (not selection order), so the relative
+/// ordering of the group stays stable across moves.
 ///
-/// If `target` is itself in the group (e.g. the user dropped onto one of the
-/// items being dragged), the move is a no-op — there's nowhere for the group
-/// to go that's different from where it already is.
+/// If `target` is itself in the group, the move is a no-op.
+///
+/// # Where the group lands
+///
+/// We mirror the sortable's "drop A onto B inserts A at B's *original* slot
+/// after `remove`" trick, generalised to N removals:
+///
+/// - **Forward / mixed move** (at least one group member was *before* the
+///   target in the vec): the group lands *just past* the target — the
+///   target shifted up by `removed_before` to make room, so we insert at
+///   `(original_target_idx - removed_before) + 1`.
+/// - **Backward move** (every group member was *after* the target): the
+///   group lands *just before* the target — `removed_before` is `0`, target
+///   stays put, we insert at `original_target_idx`.
 fn reorder_group(v: &mut Vec<Item>, group: &[u64], target: u64) {
     let group_set: HashSet<u64> = group.iter().copied().collect();
     if group_set.contains(&target) {
         return;
     }
-    // Snapshot dragged items in their *current vec order* (not selection
-    // order). Keeps the relative ordering of the group stable across moves.
+    let Some(original_target_idx) = v.iter().position(|i| i.id == target) else {
+        return;
+    };
+    // Group members BEFORE the target will shift it leftwards by this many.
+    let removed_before =
+        v.iter().take(original_target_idx).filter(|i| group_set.contains(&i.id)).count();
+    // Snapshot the group in vec order so the relative ordering stays stable.
     let dragged: Vec<Item> = v.iter().filter(|i| group_set.contains(&i.id)).cloned().collect();
     if dragged.is_empty() {
         return;
     }
     v.retain(|i| !group_set.contains(&i.id));
-    let target_idx = v.iter().position(|i| i.id == target).unwrap_or(v.len());
+    let target_idx_after = original_target_idx - removed_before;
+    let insert_pos = target_idx_after + usize::from(removed_before > 0);
     for (offset, it) in dragged.into_iter().enumerate() {
-        v.insert(target_idx + offset, it);
+        v.insert(insert_pos + offset, it);
     }
 }
 

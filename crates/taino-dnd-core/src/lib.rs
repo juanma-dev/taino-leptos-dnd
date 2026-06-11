@@ -8,7 +8,7 @@
 //!
 //! [`docs/ARCHITECTURE.md`]: https://github.com/juanma-dev/taino-leptos-dnd/blob/main/docs/ARCHITECTURE.md
 
-#![doc(html_root_url = "https://docs.rs/taino-dnd-core/0.5.0")]
+#![doc(html_root_url = "https://docs.rs/taino-dnd-core/0.5.1")]
 // Stage 2 acceptance: no `unwrap()` / `expect()` / `panic!` in public-facing
 // paths. The `restriction`-group lints below are off by default; we opt in
 // crate-wide and allow them inside `#[cfg(test)]` modules where they're the

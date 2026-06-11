@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-06-11
+### Fixed
+- **Multi-drag drop-preview no longer animates the dragged group's own
+  members.** `use_droppable`'s `displacement` memo now short-circuits to
+  `(0, 0)` for any droppable whose id is in `dragged_group` while a
+  multi-item drag is active (both bindings). Previously the non-primary
+  selected items showed a misleading `transform: translate(...)` in their
+  original slots — they looked like they were sliding away even though they
+  travel *with* the primary in the overlay. Single-item drags are
+  unaffected (the group has length 1, so the guard never fires).
+- **`examples/multi-select-list` group reorder landed one slot off.** The
+  demo's `reorder_group` now mirrors the single-drag insertion semantics
+  from `examples/sortable-list`: it measures the target's original index
+  *before* removing the group, counts how many group members sat before the
+  target, and inserts just past the target for forward/mixed moves (just
+  before it for pure-backward moves). The group now lands exactly where the
+  drop-preview pointed.
+
+### Note
+- `taino-dnd-core` is byte-identical to `0.5.0`; it's re-published at `0.5.1`
+  only to keep the three crates' versions in lock-step (the fixes live in the
+  two binding crates and the example).
+
 ## [0.5.0] - 2026-06-02
 ### Added
 - **Multi-drag, both bindings.** Drag several items as a single group.
