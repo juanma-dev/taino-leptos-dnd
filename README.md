@@ -93,6 +93,7 @@ fn App() -> impl IntoView {
 | [`examples/sortable-list-dioxus`](examples/sortable-list-dioxus) | Dioxus | The Stage-3 binding end-to-end — same UX as the Leptos sortable-list, identical API shape. |
 | [`examples/kanban-dioxus`](examples/kanban-dioxus) | Dioxus | Dioxus twin of the kanban board — cross-column moves plus FLIP post-drop settle animation. |
 | [`examples/multi-select-list`](examples/multi-select-list) | Leptos | Multi-drag: Ctrl/Cmd-click and Shift-click to select, drag any selected item to move the whole group with a `+N more` badge on the overlay. |
+| [`examples/multi-select-list-dioxus`](examples/multi-select-list-dioxus) | Dioxus | Dioxus twin of the multi-select list — same Finder/Explorer click semantics and group drag. |
 
 ### Running them locally
 
@@ -108,6 +109,7 @@ cd examples/kanban                && trunk serve --open
 cd examples/sortable-list-dioxus  && trunk serve --open
 cd examples/kanban-dioxus         && trunk serve --open
 cd examples/multi-select-list     && trunk serve --open
+cd examples/multi-select-list-dioxus && trunk serve --open
 ```
 
 `--open` opens the page in your default browser. Trunk watches the

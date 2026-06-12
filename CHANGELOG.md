@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+### Added
+- **`taino_dnd_core::drag_group`.** The multi-drag grouping decision
+  (`[primary, ...rest]` when the drag starts on a member of a multi-item
+  selection, `[primary]` otherwise) is now a pure function in core. Both
+  bindings' `begin_drag_group` delegate to it, and its unit tests live in
+  core — closing the "no native multi-drag tests on the Dioxus side" gap
+  tracked in `docs/ROADMAP.md` (the logic is framework-free, so one test
+  suite covers both bindings).
+- **`examples/multi-select-list-dioxus`.** The Dioxus twin of
+  `examples/multi-select-list`: same Finder/Explorer click semantics
+  (plain / Ctrl-Cmd / Shift), deferred-collapse on plain-clicking inside a
+  multi-selection, group reorder via `reorder_group`, and the `+N more`
+  badge on the overlay. Every multi-drag feature now has a manual test
+  surface on both frameworks.
+- `DraggableId` and `DroppableId` now derive `PartialOrd` / `Ord`.
+
+### Changed
+- **`DropResult::additional` is now deterministic.** The non-primary group
+  members are sorted by ascending id (previously: `HashSet` iteration
+  order, which varies between runs). The order still isn't the app's list
+  order — the library doesn't know it — so treat `additional` as a set and
+  reinsert the group in your own list order when applying the drop (both
+  `multi-select-list` examples show the pattern in `reorder_group`). The
+  field's docs in both bindings now state this explicitly.
+
 ## [0.5.1] - 2026-06-11
 ### Fixed
 - **Multi-drag drop-preview no longer animates the dragged group's own

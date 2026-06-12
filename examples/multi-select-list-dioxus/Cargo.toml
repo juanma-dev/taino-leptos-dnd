@@ -1,0 +1,16 @@
+[package]
+name = "example-multi-select-list-dioxus"
+description = "Multi-select drag demo for taino-dnd-dioxus: Ctrl/Shift-click to select, drag the group together."
+version = "0.5.1"
+edition = "2021"
+publish = false
+license.workspace = true
+
+[dependencies]
+dioxus = { version = "0.6", features = ["web"] }
+taino-dnd-dioxus = { path = "../../crates/taino-dnd-dioxus", version = "0.5.1" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.5.1" }
+console_error_panic_hook = "0.1"
+
+[lints]
+workspace = true

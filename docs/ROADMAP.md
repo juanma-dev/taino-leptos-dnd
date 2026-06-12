@@ -191,22 +191,19 @@ scroll-container auto-scroll, conditional drag/drop). What's left:
   group at drop time. New helpers `is_selected` / `is_being_dragged` cover
   the styling, and `examples/multi-select-list` demonstrates the
   Finder/Explorer click semantics + a `+N more` badge on the overlay.
-- **Multi-drag test/example parity on Dioxus.** The `taino-dnd-dioxus`
-  *implementation* already mirrors multi-drag 1:1 (and compiles clean on
-  wasm32), but two pieces are Leptos-only:
-  - **No Dioxus example.** Every other feature has a Dioxus twin
-    (`sortable-list-dioxus`, `kanban-dioxus`, `multi-zone-dioxus`); a
-    `multi-select-list-dioxus` mirror of `examples/multi-select-list` is
-    still missing. This is the quick win — it also doubles as a manual
-    test surface for multi-drag on Dioxus. (`publish = false`, so it can
-    ship to `main` without a crates.io release.)
-  - **No native multi-drag unit tests on the Dioxus side.** The 7
-    multi-drag tests live in `taino-dnd-leptos`'s `src/context.rs` because
-    Leptos signals are testable on the host with `Owner::new()`; Dioxus
-    signals need a running runtime, so the crate has no native test module.
-    Closing this needs either extracting the grouping logic
-    (`begin_drag_group`) into a pure, signal-free function, or a
-    runtime-backed harness.
+- ✅ **Multi-drag test/example parity on Dioxus.** Closed post-`0.5.1`:
+  - **Dioxus example shipped.** `examples/multi-select-list-dioxus`
+    mirrors `examples/multi-select-list` 1:1 (Finder/Explorer click
+    semantics, deferred collapse, `+N more` overlay badge) and doubles
+    as the manual test surface for multi-drag on Dioxus.
+  - **Grouping logic extracted to core.** Took the "pure, signal-free
+    function" option: new `taino_dnd_core::drag_group(primary, &selection)`
+    holds the grouping decision; both bindings' `begin_drag_group` are now
+    one-line wrappers around it, and the unit tests live in core where they
+    cover both frameworks at once. Bonus: the group's non-primary members
+    are now **sorted by id**, so `DropResult::additional` is deterministic
+    (it used to follow `HashSet` iteration order). `DraggableId` /
+    `DroppableId` gained `PartialOrd`/`Ord` to support this.
 - **Combining / merge** (drop one item *onto* another to nest/merge rather
   than reorder). Larger-scope interaction model, still deliberately out of
   scope.

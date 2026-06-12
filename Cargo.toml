@@ -11,6 +11,7 @@ members = [
     "examples/multi-zone",
     "examples/multi-zone-dioxus",
     "examples/multi-select-list",
+    "examples/multi-select-list-dioxus",
 ]
 # Future members (Stage 3): "crates/taino-dnd-yew"
 

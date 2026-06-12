@@ -884,6 +884,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "example-multi-select-list-dioxus"
+version = "0.5.1"
+dependencies = [
+ "console_error_panic_hook",
+ "dioxus",
+ "taino-dnd-core",
+ "taino-dnd-dioxus",
+]
+
+[[package]]
 name = "example-multi-zone"
 version = "0.5.1"
 dependencies = [
