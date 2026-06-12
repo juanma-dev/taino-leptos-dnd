@@ -21,11 +21,11 @@ use crate::{error::Error, geometry::Point};
 /// Opaque identifier for a draggable element.
 ///
 /// User code is responsible for keeping IDs unique within a single `DndContext`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DraggableId(pub u64);
 
 /// Opaque identifier for a drop target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct DroppableId(pub u64);
 
 /// The current state of a drag interaction.

@@ -22,6 +22,7 @@ pub mod collision;
 pub mod displacement;
 pub mod error;
 pub mod geometry;
+pub mod group;
 pub mod modifier;
 pub mod state;
 
@@ -31,6 +32,7 @@ pub use collision::{closest_center, pointer_within, spatial_neighbor, Direction}
 pub use displacement::{detect_axis, live_displacements};
 pub use error::Error;
 pub use geometry::{Point, Rect};
+pub use group::drag_group;
 pub use modifier::{apply_chain, Axis, Modifier, ModifierContext, Vector};
 pub use state::{
     transition, DragEvent, DragState, DraggableId, DroppableId, DEFAULT_DRAG_THRESHOLD,

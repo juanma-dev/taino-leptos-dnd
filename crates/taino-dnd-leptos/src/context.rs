@@ -108,8 +108,8 @@ pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 /// `additional` is empty for single-item drags. For multi-drag (when
 /// [`DndContext::selection`] held more than one item at drag start and the
 /// drag started on a selected item), `additional` carries the *other* group
-/// members in the order they appeared in the selection — the app applies the
-/// move to `draggable` and to each `additional` id in turn.
+/// members — the app applies the move to `draggable` and to each
+/// `additional` id in turn.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DropResult {
     /// The draggable the user actually pressed on / picked up — the *primary*
@@ -119,8 +119,11 @@ pub struct DropResult {
     /// `None` means the drag ended outside any registered droppable.
     pub over: Option<DroppableId>,
     /// Other items being dragged together with `draggable`, for multi-drag.
-    /// Empty for single-item drags. Preserves [`DndContext::selection`]'s
-    /// iteration order, excluding the primary.
+    /// Empty for single-item drags. Sorted by ascending id (the
+    /// [`taino_dnd_core::drag_group`] contract) — **not** the app's list
+    /// order, which the library doesn't know. Treat it as a set: reinsert
+    /// the group in your own list order when applying the drop (see
+    /// `examples/multi-select-list`'s `reorder_group`).
     pub additional: Vec<DraggableId>,
 }
 
@@ -233,21 +236,11 @@ impl DndContext {
     }
 
     /// Build [`Self::dragged_group`] from the current selection at drag
-    /// start. If `primary` is in the selection and the selection has more
-    /// than one element, the group is `[primary, ...others]` (preserving
-    /// selection iteration order, primary first). Otherwise it's just
-    /// `[primary]` — single-item drag.
+    /// start. Delegates the grouping decision to the pure
+    /// [`taino_dnd_core::drag_group`]: `[primary, ...rest sorted by id]`
+    /// when `primary` is in a multi-item selection, `[primary]` otherwise.
     pub(crate) fn begin_drag_group(self, primary: DraggableId) {
-        let group = self.selection.with_untracked(|sel| {
-            if sel.len() > 1 && sel.contains(&primary) {
-                let mut g = Vec::with_capacity(sel.len());
-                g.push(primary);
-                g.extend(sel.iter().copied().filter(|id| *id != primary));
-                g
-            } else {
-                vec![primary]
-            }
-        });
+        let group = self.selection.with_untracked(|sel| taino_dnd_core::drag_group(primary, sel));
         self.dragged_group.set(group);
     }
 
@@ -649,14 +642,11 @@ mod tests {
             ctx.selection
                 .set([DraggableId(1), DraggableId(2), DraggableId(3)].into_iter().collect());
             ctx.begin_drag_group(DraggableId(2));
-            let group = ctx.dragged_group.get_untracked();
-            assert_eq!(group.len(), 3);
-            // Primary is always first; the others follow in selection-iteration
-            // order (HashSet doesn't guarantee a stable order, so we compare
-            // the rest as a set).
-            assert_eq!(group[0], DraggableId(2));
-            let rest: HashSet<DraggableId> = group[1..].iter().copied().collect();
-            assert_eq!(rest, [DraggableId(1), DraggableId(3)].into_iter().collect());
+            // Primary first, rest sorted by id (core's `drag_group` contract).
+            assert_eq!(
+                ctx.dragged_group.get_untracked(),
+                vec![DraggableId(2), DraggableId(1), DraggableId(3)],
+            );
         });
     }
 
