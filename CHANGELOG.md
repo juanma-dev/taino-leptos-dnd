@@ -5,7 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0] - 2026-07-25
+### Changed
+- **Leptos 0.7 → 0.8 and Dioxus 0.6 → 0.7.** Both bindings now target the
+  current framework majors; consumers still on Leptos 0.7 / Dioxus 0.6
+  should stay on the `0.5.x` line. No API changes were needed in either
+  binding — this is a dependency-major bump only.
+- **MSRV raised to 1.88** (required by Leptos 0.8). The CI `msrv` job and
+  the README badge track the new floor.
+- The two Leptos browser interaction tests that were `#[ignore]`d under
+  Leptos 0.7 (`use_droppable`'s rect-measurement effect never fired under
+  `mount_to` + wasm-bindgen-test) are re-enabled under 0.8.
+- **`DropResult::additional` is now deterministic.** The non-primary group
+  members are sorted by ascending id (previously: `HashSet` iteration
+  order, which varies between runs). The order still isn't the app's list
+  order — the library doesn't know it — so treat `additional` as a set and
+  reinsert the group in your own list order when applying the drop (both
+  `multi-select-list` examples show the pattern in `reorder_group`). The
+  field's docs in both bindings now state this explicitly.
+
 ### Added
 - **`taino_dnd_core::drag_group`.** The multi-drag grouping decision
   (`[primary, ...rest]` when the drag starts on a member of a multi-item
@@ -21,15 +39,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   badge on the overlay. Every multi-drag feature now has a manual test
   surface on both frameworks.
 - `DraggableId` and `DroppableId` now derive `PartialOrd` / `Ord`.
-
-### Changed
-- **`DropResult::additional` is now deterministic.** The non-primary group
-  members are sorted by ascending id (previously: `HashSet` iteration
-  order, which varies between runs). The order still isn't the app's list
-  order — the library doesn't know it — so treat `additional` as a set and
-  reinsert the group in your own list order when applying the drop (both
-  `multi-select-list` examples show the pattern in `reorder_group`). The
-  field's docs in both bindings now state this explicitly.
 
 ## [0.5.1] - 2026-06-11
 ### Fixed

@@ -1,15 +1,15 @@
 [package]
 name = "example-multi-zone-dioxus"
 description = "Multi-zone demo for taino-dnd-dioxus: vertical lists with scroll plus horizontal task bars in a single drag context."
-version = "0.5.1"
+version = "0.6.0"
 edition = "2021"
 publish = false
 license.workspace = true
 
 [dependencies]
 dioxus = { version = "0.7", features = ["web"] }
-taino-dnd-dioxus = { path = "../../crates/taino-dnd-dioxus", version = "0.5.1" }
-taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.5.1" }
+taino-dnd-dioxus = { path = "../../crates/taino-dnd-dioxus", version = "0.6.0" }
+taino-dnd-core = { path = "../../crates/taino-dnd-core", version = "0.6.0" }
 console_error_panic_hook = "0.1"
 
 [lints]
