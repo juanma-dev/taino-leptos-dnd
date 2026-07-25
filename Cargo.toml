@@ -18,7 +18,7 @@ members = [
 [workspace.package]
 version = "0.5.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/juanma-dev/taino-leptos-dnd"
 homepage = "https://github.com/juanma-dev/taino-leptos-dnd"
@@ -31,11 +31,11 @@ categories = ["wasm", "web-programming", "gui"]
 taino-dnd-core = { version = "0.5.1", path = "crates/taino-dnd-core" }
 
 # Leptos ecosystem (Stage 1 target — pin to a single minor for the workspace)
-leptos = { version = "0.7", default-features = false }
+leptos = { version = "0.8", default-features = false }
 
 # Dioxus binding (Stage 3 target). We depend on the umbrella crate without
 # default features so library code doesn't pull a specific renderer in.
-dioxus = { version = "0.6", default-features = false }
+dioxus = { version = "0.7", default-features = false }
 
 # Browser glue (kept out of -core so it stays framework-agnostic)
 wasm-bindgen = "0.2"

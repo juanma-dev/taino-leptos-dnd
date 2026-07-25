@@ -323,17 +323,11 @@ fn keyboard_escape_cancels_an_active_drag() {
     assert_eq!(ctx.state.get_untracked(), DragState::Idle);
 }
 
-// IGNORED: in this `mount_to` + wasm-bindgen-test environment, the
-// `Effect::new` that `use_droppable` schedules to measure its rect never
-// runs (the ctx.droppables registry stays empty even after a 200 ms
-// yield), so `keyboard_step(Down)` finds no neighbour. Leptos's CSR
-// runtime works in production (the kanban example proves it), but the
-// effect scheduler isn't kicked the same way in this test setup.
-// Tracked in docs/ROADMAP.md "Future work" as a Leptos-0.7 testing
-// follow-up; the corresponding logic is covered by the native unit
-// tests in `src/context.rs` (`keyboard_step_moves_over_to_the_neighbor`).
+// Under Leptos 0.7 this test was `#[ignore]`d: the `Effect::new` that
+// `use_droppable` schedules to measure its rect never ran under
+// `mount_to` + wasm-bindgen-test, so `keyboard_step(Down)` found no
+// neighbour. Re-enabled with the Leptos 0.8 bump.
 #[wasm_bindgen_test::wasm_bindgen_test]
-#[ignore]
 async fn keyboard_arrow_steps_over_to_the_neighbor() {
     let (m, ctx) = mount(|slot| {
         let ctx = provide_dnd_context();
@@ -348,14 +342,10 @@ async fn keyboard_arrow_steps_over_to_the_neighbor() {
     assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
 }
 
-// IGNORED: depends on `keyboard_step(Down)` finding a neighbour droppable,
-// which in turn needs `use_droppable`'s rect-measurement effect to have
-// run. Same Leptos-0.7 mount_to + wasm-bindgen-test scheduling issue as
-// `keyboard_arrow_steps_over_to_the_neighbor` above. The formatter
-// plumbing itself (Pickup / Cancel) is covered by the native unit tests
-// in `src/context.rs` (`announce_event_uses_the_installed_formatter`).
+// Was `#[ignore]`d under Leptos 0.7 for the same effect-scheduling issue
+// as `keyboard_arrow_steps_over_to_the_neighbor` above. Re-enabled with
+// the Leptos 0.8 bump.
 #[wasm_bindgen_test::wasm_bindgen_test]
-#[ignore]
 async fn announcement_formatter_receives_lifecycle_events() {
     // Capture every event the formatter sees via a shared `Mutex<Vec<_>>`.
     // The formatter runs *synchronously* inside `announce_event`, so the

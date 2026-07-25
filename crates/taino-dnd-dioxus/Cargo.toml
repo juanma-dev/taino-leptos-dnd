@@ -39,7 +39,7 @@ wasm-bindgen-test = { workspace = true }
 #   loop between dispatch and assert.
 # - Extra web-sys features for synthetic `PointerEvent` / `KeyboardEvent`.
 dioxus = { workspace = true, features = ["web", "html", "hooks", "macro", "signals"] }
-dioxus-web = "0.6"
+dioxus-web = "0.7"
 gloo-timers = { version = "0.3", features = ["futures"] }
 web-sys = { workspace = true, features = [
     "Event",
