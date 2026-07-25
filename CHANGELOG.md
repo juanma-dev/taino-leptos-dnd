@@ -13,9 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   binding — this is a dependency-major bump only.
 - **MSRV raised to 1.88** (required by Leptos 0.8). The CI `msrv` job and
   the README badge track the new floor.
-- The two Leptos browser interaction tests that were `#[ignore]`d under
-  Leptos 0.7 (`use_droppable`'s rect-measurement effect never fired under
-  `mount_to` + wasm-bindgen-test) are re-enabled under 0.8.
+- The two Leptos browser interaction tests that were `#[ignore]`d
+  ("`use_droppable`'s rect-measurement effect never fires under
+  `mount_to` + wasm-bindgen-test") are re-enabled. Root cause: the test
+  build compiled leptos without the `csr` feature, which leaves
+  reactive_graph's `effects` feature off and makes `Effect::new` inert
+  (server behavior). The leptos dev-dependency now enables `csr`.
 - **`DropResult::additional` is now deterministic.** The non-primary group
   members are sorted by ascending id (previously: `HashSet` iteration
   order, which varies between runs). The order still isn't the app's list
