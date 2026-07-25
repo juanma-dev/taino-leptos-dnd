@@ -2,14 +2,17 @@
 
 [![CI](https://github.com/juanma-dev/taino-leptos-dnd/actions/workflows/ci.yml/badge.svg)](https://github.com/juanma-dev/taino-leptos-dnd/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue.svg)](#license)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](rust-toolchain.toml)
+[![MSRV](https://img.shields.io/badge/MSRV-1.88-blue.svg)](rust-toolchain.toml)
 [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](Cargo.toml)
 
 A **drag & drop** library for [Leptos](https://leptos.dev), inspired by the ergonomics of
 `react-beautiful-dnd` / `dnd-kit`, with a framework-agnostic core that can power bindings
 for Dioxus, Yew, and others.
 
-> ⚠️ **Status: Pre-alpha (v0.0.1).** Public APIs will change without notice until v0.1.
+> **Status: 0.x, published on crates.io.** Feature-complete against the good parts of
+> `react-beautiful-dnd`/`dnd-kit` (see the [roadmap](docs/ROADMAP.md)). Minor versions
+> may include breaking changes until 1.0, per the usual SemVer-for-0.x caveat.
+> Supports **Leptos 0.8** and **Dioxus 0.7**.
 
 ## Why
 
@@ -27,10 +30,10 @@ inaccessible, and visually inconsistent). `taino-leptos-dnd` aims to provide:
 
 | Crate                  | Purpose                                  | Status        |
 | ---------------------- | ---------------------------------------- | ------------- |
-| `taino-dnd-core`       | Geometry, state machine, framework-free  | Pre-alpha     |
-| `taino-dnd-leptos`     | Leptos hooks and components              | Pre-alpha     |
-| `taino-dnd-dioxus`     | Dioxus integration (full API parity)     | Pre-alpha     |
-| `taino-dnd-yew`        | Yew integration                          | Planned (S3)  |
+| `taino-dnd-core`       | Geometry, state machine, framework-free  | Published     |
+| `taino-dnd-leptos`     | Leptos hooks and components              | Published     |
+| `taino-dnd-dioxus`     | Dioxus integration (full API parity)     | Published     |
+| `taino-dnd-yew`        | Yew integration                          | Planned       |
 
 ## Roadmap
 
