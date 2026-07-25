@@ -30,6 +30,12 @@ web-sys = { workspace = true, features = [
 ] }
 
 [dev-dependencies]
+# The library itself is feature-agnostic, but the browser test suite mounts
+# components client-side. Leptos's `csr` feature turns on reactive_graph's
+# `effects` feature — without it `Effect::new` is inert (server behavior),
+# `use_droppable` never measures its rect, and the droppables registry
+# stays empty. This was the root cause of the two `#[ignore]`d tests.
+leptos = { workspace = true, features = ["csr"] }
 wasm-bindgen-test = { workspace = true }
 # `gloo-timers` lets the interaction-test suite yield to the event loop
 # after mount, so Leptos's `Effect::new`-scheduled droppable-registration

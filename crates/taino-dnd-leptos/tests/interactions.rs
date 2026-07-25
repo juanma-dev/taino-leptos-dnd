@@ -323,10 +323,13 @@ fn keyboard_escape_cancels_an_active_drag() {
     assert_eq!(ctx.state.get_untracked(), DragState::Idle);
 }
 
-// Under Leptos 0.7 this test was `#[ignore]`d: the `Effect::new` that
-// `use_droppable` schedules to measure its rect never ran under
-// `mount_to` + wasm-bindgen-test, so `keyboard_step(Down)` found no
-// neighbour. Re-enabled with the Leptos 0.8 bump.
+// This test was `#[ignore]`d for a long time: the `Effect::new` that
+// `use_droppable` schedules to measure its rect never ran, so
+// `keyboard_step(Down)` found no neighbour. Root cause: the test build
+// compiled leptos without the `csr` feature, which leaves
+// reactive_graph's `effects` feature off — `Effect::new` is inert in
+// that configuration (server behavior). Fixed by enabling `csr` on the
+// leptos dev-dependency.
 #[wasm_bindgen_test::wasm_bindgen_test]
 async fn keyboard_arrow_steps_over_to_the_neighbor() {
     let (m, ctx) = mount(|slot| {
@@ -342,9 +345,9 @@ async fn keyboard_arrow_steps_over_to_the_neighbor() {
     assert_eq!(ctx.over.get_untracked(), Some(DroppableId(2)));
 }
 
-// Was `#[ignore]`d under Leptos 0.7 for the same effect-scheduling issue
-// as `keyboard_arrow_steps_over_to_the_neighbor` above. Re-enabled with
-// the Leptos 0.8 bump.
+// Was `#[ignore]`d for the same missing-`csr`-feature issue as
+// `keyboard_arrow_steps_over_to_the_neighbor` above; see the comment
+// there.
 #[wasm_bindgen_test::wasm_bindgen_test]
 async fn announcement_formatter_receives_lifecycle_events() {
     // Capture every event the formatter sees via a shared `Mutex<Vec<_>>`.

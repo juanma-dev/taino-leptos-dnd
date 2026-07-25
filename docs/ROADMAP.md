@@ -178,9 +178,11 @@ scroll-container auto-scroll, conditional drag/drop). What's left:
   asserts the public signals. CI's `browser-tests` job drives both via
   `wasm-pack test --chrome --headless`. Two Leptos-side tests that depend
   on `use_droppable`'s rect-measurement `Effect::new` were `#[ignore]`d
-  under Leptos 0.7 (the effect scheduler never kicked under `mount_to` +
-  wasm-bindgen-test); they were re-enabled with the Leptos 0.8 bump in
-  `0.6.0`.
+  for a long time ("the effect scheduler never kicks"). Root cause found
+  during the `0.6.0` upgrade: the test build compiled leptos without the
+  `csr` feature, so reactive_graph's `effects` feature was off and
+  `Effect::new` was inert, exactly like on the server. Enabling `csr` on
+  the leptos dev-dependency fixed it; both tests run in CI again.
 - ✅ **Multi-drag, both bindings.** Shipped in `0.5.0` (2026-06-02): apps
   push their selection to the new `DndContext::selection`, the library
   snapshots the whole selection into `dragged_group` when a drag starts on
