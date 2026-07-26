@@ -47,21 +47,57 @@ CI runs the same set. PRs that don't pass CI will not be reviewed.
 
 ### Browser interaction tests
 
-Synthetic-event tests for both bindings live in `tests/interactions.rs`
-(Leptos) and `tests/web.rs` (Dioxus). They require a real browser DOM
-(Node has no `document`), so they're driven by `wasm-pack` against
-headless Chrome:
+Synthetic-event tests for both bindings live in each crate's
+`tests/interactions.rs`. They require a real browser DOM (Node has no
+`document`), so they're driven by `wasm-pack` against headless Chrome.
+Note that `wasm-pack test -p <crate>` does **not** work with this
+virtual workspace — run from inside the crate directory:
 
 ```bash
 cargo install --locked wasm-pack
-wasm-pack test --chrome --headless -p taino-dnd-leptos
-wasm-pack test --chrome --headless -p taino-dnd-dioxus
-# drop --headless if you want to watch the events fire in a visible window
+cd crates/taino-dnd-leptos  && wasm-pack test --chrome --headless
+cd crates/taino-dnd-dioxus && wasm-pack test --chrome --headless
 ```
 
-CI runs both via the `browser-tests` job; if you're iterating locally and
-don't have Chrome handy, you can compile-check the suite without running
-it: `cargo test -p taino-dnd-leptos --target wasm32-unknown-unknown --no-run`.
+If you don't have a system Chrome (e.g. WSL), download a matched
+[Chrome for Testing](https://googlechromelabs.github.io/chrome-for-testing/)
+`chrome-headless-shell` + `chromedriver` pair, set
+`CHROMEDRIVER=<path>` in the environment, and drop a `webdriver.json`
+next to the crate's `Cargo.toml` (gitignored) pointing at the browser:
+
+```json
+{
+  "goog:chromeOptions": {
+    "binary": "/path/to/chrome-headless-shell",
+    "args": ["--no-sandbox", "--disable-dev-shm-usage"]
+  }
+}
+```
+
+CI runs both suites via the `browser-tests` job with exactly this pinned
+setup (the Dioxus 0.7 suite hangs under the runner's preinstalled full
+Chrome). If you're iterating locally and don't have Chrome handy, you can
+compile-check the suite without running it:
+`cargo test -p taino-dnd-leptos --target wasm32-unknown-unknown --no-run`.
+
+### End-to-end smoke (real examples, real drags)
+
+The interaction tests exercise the hooks; `scripts/e2e-smoke.py` exercises
+the shipped examples. It trunk-builds the two `multi-zone` demos, serves
+them, and drives a real cross-zone pointer drag (vertical list → vertical
+list, and horizontal bar → horizontal bar) through headless Chrome via
+the WebDriver protocol, asserting the card actually moved in the DOM:
+
+```bash
+scripts/e2e-smoke.py                 # both frameworks
+scripts/e2e-smoke.py multi-zone      # just the Leptos demo
+E2E_NO_BUILD=1 scripts/e2e-smoke.py  # reuse the existing dist/
+```
+
+It reuses the same `CHROME` / `CHROMEDRIVER` binaries as above and needs
+`trunk` on the PATH (or `TRUNK=<path>`). Run it after dependency bumps or
+changes to collision/geometry code — it catches integration breakage that
+the synthetic hook tests can't see.
 
 ## Commits
 
