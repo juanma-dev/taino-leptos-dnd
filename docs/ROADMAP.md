@@ -204,8 +204,39 @@ scroll-container auto-scroll, conditional drag/drop). What's left:
     (it used to follow `HashSet` iteration order). `DraggableId` /
     `DroppableId` gained `PartialOrd`/`Ord` to support this.
 - **Combining / merge** (drop one item *onto* another to nest/merge rather
-  than reorder). Larger-scope interaction model, still deliberately out of
-  scope.
+  than reorder). **This is the next feature, targeted at `0.7.0`.** Design
+  questions to settle before coding:
+  - How a droppable opts in (`use_droppable_with` flag? a `combines: bool`
+    in options?) and how the "combine" hover intent is distinguished from
+    the "insert between" intent (dnd-kit uses an inner collision threshold
+    — e.g. pointer within the middle 60% of the target combines, edges
+    reorder).
+  - What `DropResult` reports: probably a `DropKind::Combine { target }`
+    vs `DropKind::Insert { .. }` enum so existing apps keep compiling
+    (non-breaking default = Insert).
+  - Distinct visual affordance (target highlight instead of displacement)
+    and a distinct announcement event for screen readers.
+  - Collision logic is pure geometry → lives in `taino-dnd-core` with unit
+    tests; bindings only surface the state.
+
+### Smaller follow-ups (unscheduled)
+
+- **Leptos parity for the overlay regression test.** `0.6.1` added
+  `overlay_layer_shows_while_dragging_and_hides_after_cancel` to the
+  Dioxus browser suite (Dioxus patches `style` per property — every
+  branch must emit a congruent property set). Leptos replaces the whole
+  attribute so it can't regress the same way, but the suites are meant
+  to mirror each other.
+- **Run `scripts/e2e-smoke.py` in CI.** The pinned Chrome-for-Testing
+  setup in the `browser-tests` job is exactly what the script needs; a
+  follow-up job could trunk-build the two multi-zone examples and run it.
+  It catches integration breakage the synthetic hook tests can't see
+  (the 0.6.0 overlay bug was only visible in a real example).
+- **GitHub Releases.** `v0.6.0` / `v0.6.1` exist as annotated tags only;
+  creating Releases from the CHANGELOG sections gives watchers
+  notifications and better visibility.
+- **Yew binding** (`crates/taino-dnd-yew`) — the commented-out workspace
+  member; `docs/PORTING.md` describes the recipe.
 
 ---
 
