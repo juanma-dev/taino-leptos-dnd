@@ -56,9 +56,15 @@ pub fn DragOverlay(children: Element) -> Element {
         let size = ctx
             .dragged_element_rect
             .read()
-            .map_or(String::new(), |r| format!("width: {}px; height: {}px;", r.width, r.height));
+            .map_or_else(String::new, |r| format!("width: {}px; height: {}px;", r.width, r.height));
 
-        let (x, y, transition) = match *ctx.state.read() {
+        // Dioxus's `style` attribute is patched per CSS property, and a
+        // property that vanishes from the string is not removed from the
+        // element. Every branch must therefore emit the *same* property
+        // set — `display` and `transition` are always present and carry
+        // the show/hide (previously the hidden branches returned a bare
+        // "display: none;", which then stuck to the element forever).
+        let (x, y, transition_ms, display) = match *ctx.state.read() {
             // Active drag: track the modifier-adjusted pointer. Position the
             // overlay at the dragged element's original top-left plus the drag
             // delta, preserving the cursor's grab-point within the card.
@@ -66,28 +72,24 @@ pub fn DragOverlay(children: Element) -> Element {
                 let delta = ctx.modify(Vector::new(current.x - start.x, current.y - start.y));
                 let (bx, by) =
                     ctx.dragged_element_rect.read().map_or((start.x, start.y), |r| (r.x, r.y));
-                (bx + delta.x, by + delta.y, String::new())
+                (bx + delta.x, by + delta.y, 0, "block")
             }
             // Drop-settle: glide from the release position to the landing slot
             // (a CSS transition; the `Settle` timer hides us when it ends).
-            DragState::Dropping { .. } => match *ctx.drop_target.read() {
-                Some(p) => (
-                    p.x,
-                    p.y,
-                    format!(
-                        "transition: transform {DROP_ANIMATION_MS}ms cubic-bezier(0.2, 0, 0, 1); "
-                    ),
-                ),
-                None => return "display: none;".to_owned(),
-            },
-            _ => return "display: none;".to_owned(),
+            DragState::Dropping { .. } => ctx
+                .drop_target
+                .read()
+                .map_or((0.0, 0.0, 0, "none"), |p| (p.x, p.y, DROP_ANIMATION_MS, "block")),
+            _ => (0.0, 0.0, 0, "none"),
         };
 
         format!(
             "position: fixed; top: 0; left: 0; \
              transform: translate({x}px, {y}px); \
              pointer-events: none; z-index: 9999; \
-             will-change: transform; {transition}{size}"
+             will-change: transform; \
+             transition: transform {transition_ms}ms cubic-bezier(0.2, 0, 0, 1); \
+             {size}display: {display};"
         )
     });
 

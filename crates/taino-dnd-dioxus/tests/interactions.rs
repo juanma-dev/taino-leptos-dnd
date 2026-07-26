@@ -31,7 +31,7 @@ use std::sync::{Arc, Mutex};
 use dioxus::prelude::*;
 use taino_dnd_core::{AnnounceEvent, DragState, DraggableId, DroppableId};
 use taino_dnd_dioxus::{
-    provide_dnd_context, use_draggable, use_draggable_with, use_droppable, DndContext,
+    provide_dnd_context, use_draggable, use_draggable_with, use_droppable, DndContext, DragOverlay,
 };
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, KeyboardEventInit, PointerEventInit};
@@ -52,6 +52,9 @@ enum AppKind {
     /// Two rows + a custom announcement formatter installed in `App` that
     /// records each event into `FORMATTER_LOG`.
     FormatterCapture,
+    /// Two rows + a `DragOverlay` so tests can assert the preview layer's
+    /// visibility toggles with the drag lifecycle.
+    WithOverlay,
 }
 
 thread_local! {
@@ -84,6 +87,10 @@ fn app() -> Element {
     match kind {
         AppKind::TwoRows | AppKind::FormatterCapture => rsx! { TwoRows {} },
         AppKind::LockedRow => rsx! { LockedRow {} },
+        AppKind::WithOverlay => rsx! {
+            TwoRows {}
+            DragOverlay { div { "data-handle": "overlay-content", "preview" } }
+        },
     }
 }
 
@@ -334,4 +341,46 @@ async fn announcement_formatter_receives_lifecycle_events() {
         "last event should be Cancelled, got {:?}",
         events.last()
     );
+}
+
+/// Computed `display` of the overlay layer inside `root_name`.
+fn overlay_display(root_name: &str) -> String {
+    let doc = web_sys::window().unwrap().document().unwrap();
+    let layer = doc
+        .get_element_by_id(root_name)
+        .unwrap()
+        .query_selector(".taino-dnd-overlay")
+        .unwrap()
+        .expect("DragOverlay layer must be mounted");
+    web_sys::window()
+        .unwrap()
+        .get_computed_style(&layer)
+        .unwrap()
+        .unwrap()
+        .get_property_value("display")
+        .unwrap()
+}
+
+// Regression test: Dioxus patches the `style` attribute per CSS property
+// and never removes properties that vanish from the string, so the
+// overlay's idle "display: none;" used to stick to the layer forever —
+// the drag preview stayed invisible for the whole drag (the examples'
+// "the dragged card disappears" bug). The overlay must emit a congruent
+// property set and flip `display` by value.
+#[wasm_bindgen_test::wasm_bindgen_test]
+async fn overlay_layer_shows_while_dragging_and_hides_after_cancel() {
+    let ctx = mount("dx-overlay", AppKind::WithOverlay).await;
+    let item = find("dx-overlay", "item-1");
+    assert_eq!(overlay_display("dx-overlay"), "none", "hidden while idle");
+
+    pointer(&item, "pointerdown", 10.0, 10.0);
+    pointer(&item, "pointermove", 80.0, 10.0);
+    tick().await;
+    assert!(matches!(*ctx.state.peek(), DragState::Dragging { .. }));
+    assert_eq!(overlay_display("dx-overlay"), "block", "visible while dragging");
+
+    pointer(&item, "pointercancel", 80.0, 10.0);
+    tick().await;
+    assert_eq!(*ctx.state.peek(), DragState::Idle);
+    assert_eq!(overlay_display("dx-overlay"), "none", "hidden again after cancel");
 }

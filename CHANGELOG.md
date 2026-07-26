@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2026-07-26
+### Fixed
+- **Dioxus: `DragOverlay` stayed invisible for the whole drag.** Dioxus
+  patches the `style` attribute per CSS property and does not remove
+  properties that vanish from the string, so the overlay's idle
+  `display: none;` stuck to the layer forever — the dragged card seemed
+  to disappear while everything else (displacement, drop) worked. The
+  overlay now emits a congruent property set in every state and flips
+  `display` (and the settle `transition`) by value. Found by manual
+  testing of `examples/multi-zone-dioxus` under Dioxus 0.7; covered by a
+  new browser regression test
+  (`overlay_layer_shows_while_dragging_and_hides_after_cancel`).
+
+### Note
+- `taino-dnd-core` and `taino-dnd-leptos` are unchanged; they're
+  re-published at `0.6.1` only to keep the three crates in lock-step.
+
 ## [0.6.0] - 2026-07-25
 ### Changed
 - **Leptos 0.7 → 0.8 and Dioxus 0.6 → 0.7.** Both bindings now target the
