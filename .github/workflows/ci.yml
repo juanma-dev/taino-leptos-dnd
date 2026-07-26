@@ -85,11 +85,32 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           # wasm-pack drives `wasm-bindgen-test-runner` in a real headless
-          # Chrome (already installed on ubuntu-latest), the only place the
-          # synthetic-event tests in `tests/interactions.rs` will actually run
-          # (Node has no DOM). Pinned chromedriver isn't needed — wasm-pack
-          # downloads a matching one on first invocation.
+          # Chrome, the only place the synthetic-event tests in
+          # `tests/interactions.rs` will actually run (Node has no DOM).
           tool: wasm-pack
+      # Pin the browser instead of using the runner's preinstalled Chrome:
+      # the Dioxus 0.7 test suite hangs at "Loading scripts..." under the
+      # runner's full Chrome, but runs clean under chrome-headless-shell
+      # (verified locally and here). Chrome-for-Testing ships matched
+      # browser + chromedriver builds, so the pair can't drift apart.
+      - name: Install Chrome for Testing + chromedriver
+        run: |
+          VERSION=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions.json \
+            | jq -r '.channels.Stable.version')
+          echo "Chrome for Testing $VERSION"
+          cd "$RUNNER_TEMP"
+          for pkg in chrome-headless-shell chromedriver; do
+            curl -sO "https://storage.googleapis.com/chrome-for-testing-public/$VERSION/linux64/$pkg-linux64.zip"
+            unzip -qo "$pkg-linux64.zip"
+          done
+          echo "CHROMEDRIVER=$RUNNER_TEMP/chromedriver-linux64/chromedriver" >> "$GITHUB_ENV"
+          # wasm-bindgen-test-runner picks up `webdriver.json` from the cwd
+          # of the test invocation (each binding crate's directory).
+          for crate in taino-dnd-leptos taino-dnd-dioxus; do
+            printf '{"goog:chromeOptions":{"binary":"%s","args":["--no-sandbox","--disable-dev-shm-usage"]}}\n' \
+              "$RUNNER_TEMP/chrome-headless-shell-linux64/chrome-headless-shell" \
+              > "$GITHUB_WORKSPACE/crates/$crate/webdriver.json"
+          done
       # `wasm-pack test -p <crate>` doesn't work with virtual workspaces —
       # wasm-pack parses the root `Cargo.toml` first and bails with
       # `missing field 'package'`. Cd-ing into each crate sidesteps that.

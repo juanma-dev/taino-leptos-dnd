@@ -30,3 +30,6 @@ Thumbs.db
 
 # Local Claude Code / agent settings (user-specific permission grants).
 .claude/
+
+# Local browser-test config (CI generates its own with runner paths)
+crates/*/webdriver.json
