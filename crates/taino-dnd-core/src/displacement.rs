@@ -38,6 +38,8 @@
 //! should call [`live_displacements`] per column with the column's
 //! own item slice.
 
+use std::{fmt::Debug, hash::Hash};
+
 use crate::{geometry::Rect, modifier::Vector, Axis, DroppableId};
 
 /// Compute the visual displacement each item should apply while a drag
@@ -77,13 +79,16 @@ use crate::{geometry::Rect, modifier::Vector, Axis, DroppableId};
 /// assert_eq!(d[2].1, Vector::new(0.0, -40.0));            // item 3
 /// assert_eq!(d[3].1, Vector::new(0.0, -40.0));            // item 4
 /// ```
-pub fn live_displacements(
-    dragged: DroppableId,
-    over: Option<DroppableId>,
-    items: &[(DroppableId, Rect)],
+pub fn live_displacements<T>(
+    dragged: DroppableId<T>,
+    over: Option<DroppableId<T>>,
+    items: &[(DroppableId<T>, Rect)],
     axis: Axis,
-) -> Vec<(DroppableId, Vector)> {
-    let mut out: Vec<(DroppableId, Vector)> =
+) -> Vec<(DroppableId<T>, Vector)>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
+    let mut out: Vec<(DroppableId<T>, Vector)> =
         items.iter().map(|(id, _)| (*id, Vector::default())).collect();
 
     let Some(over) = over else {
@@ -131,7 +136,10 @@ pub fn live_displacements(
 /// than their left edges, and [`Axis::X`] otherwise. For zero or one
 /// item, defaults to [`Axis::Y`] — vertical is the most common
 /// sortable layout.
-pub fn detect_axis(items: &[(DroppableId, Rect)]) -> Axis {
+pub fn detect_axis<T>(items: &[(DroppableId<T>, Rect)]) -> Axis
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     if items.len() < 2 {
         return Axis::Y;
     }
@@ -154,7 +162,7 @@ pub fn detect_axis(items: &[(DroppableId, Rect)]) -> Axis {
 mod tests {
     use super::*;
 
-    fn vertical_list() -> [(DroppableId, Rect); 4] {
+    fn vertical_list() -> [(DroppableId<u64>, Rect); 4] {
         [
             (DroppableId(1), Rect::new(0.0, 0.0, 100.0, 40.0)),
             (DroppableId(2), Rect::new(0.0, 50.0, 100.0, 40.0)),
@@ -163,7 +171,7 @@ mod tests {
         ]
     }
 
-    fn horizontal_list() -> [(DroppableId, Rect); 4] {
+    fn horizontal_list() -> [(DroppableId<u64>, Rect); 4] {
         [
             (DroppableId(1), Rect::new(0.0, 0.0, 80.0, 40.0)),
             (DroppableId(2), Rect::new(100.0, 0.0, 80.0, 40.0)),
@@ -281,7 +289,7 @@ mod tests {
 
     #[test]
     fn detect_axis_empty_or_single_defaults_to_y() {
-        assert_eq!(detect_axis(&[]), Axis::Y);
+        assert_eq!(detect_axis::<u64>(&[]), Axis::Y);
         assert_eq!(detect_axis(&[(DroppableId(1), Rect::new(0.0, 0.0, 10.0, 10.0))]), Axis::Y);
     }
 

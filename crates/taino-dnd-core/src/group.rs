@@ -9,7 +9,8 @@
 //! re-implementing it against its framework's signal type.
 
 use std::collections::HashSet;
-use std::hash::BuildHasher;
+use std::fmt::Debug;
+use std::hash::{BuildHasher, Hash};
 
 use crate::state::DraggableId;
 
@@ -45,14 +46,18 @@ use crate::state::DraggableId;
 /// // Primary outside the selection: single-item drag.
 /// assert_eq!(drag_group(DraggableId(9), &selection), vec![DraggableId(9)]);
 /// ```
-pub fn drag_group<S: BuildHasher>(
-    primary: DraggableId,
-    selection: &HashSet<DraggableId, S>,
-) -> Vec<DraggableId> {
+pub fn drag_group<T, S>(
+    primary: DraggableId<T>,
+    selection: &HashSet<DraggableId<T>, S>,
+) -> Vec<DraggableId<T>>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+    S: BuildHasher,
+{
     if selection.len() > 1 && selection.contains(&primary) {
         let mut g = Vec::with_capacity(selection.len());
         g.push(primary);
-        let mut rest: Vec<DraggableId> =
+        let mut rest: Vec<DraggableId<T>> =
             selection.iter().copied().filter(|id| *id != primary).collect();
         rest.sort_unstable();
         g.extend(rest);
@@ -66,7 +71,7 @@ pub fn drag_group<S: BuildHasher>(
 mod tests {
     use super::*;
 
-    fn set(ids: &[u64]) -> HashSet<DraggableId> {
+    fn set(ids: &[u64]) -> HashSet<DraggableId<u64>> {
         ids.iter().map(|&id| DraggableId(id)).collect()
     }
 

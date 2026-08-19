@@ -1,5 +1,7 @@
 //! The [`use_draggable`] hook.
 
+use std::{fmt::Debug, hash::Hash};
+
 use leptos::{html::Div, prelude::*};
 use taino_dnd_core::{
     transition, AnnounceEvent, Direction, DragEvent, DragState, DraggableId, Point,
@@ -14,7 +16,10 @@ use crate::context::{use_dnd_context, DndContext, DropResult};
 /// `UseDraggable` is [`Copy`], so it can be moved into multiple event handlers
 /// in the same view without cloning.
 #[derive(Clone, Copy)]
-pub struct UseDraggable {
+pub struct UseDraggable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// Attach to the draggable element with `node_ref={handle.node_ref}`.
     pub node_ref: NodeRef<Div>,
     /// `true` while this specific draggable is being dragged.
@@ -27,11 +32,14 @@ pub struct UseDraggable {
     /// Always `false` for [`use_draggable`]; set via [`use_draggable_with`].
     pub disabled: Signal<bool>,
     /// The identifier this hook was instantiated with.
-    pub id: DraggableId,
-    ctx: DndContext,
+    pub id: DraggableId<T>,
+    ctx: DndContext<T>,
 }
 
-impl UseDraggable {
+impl<T> UseDraggable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// `on:pointerdown` handler. Starts a `Pressed` state; movement past the
     /// drag threshold promotes it to `Dragging`.
     pub fn on_pointer_down(self, ev: &web_sys::PointerEvent) {
@@ -259,7 +267,7 @@ impl UseDraggable {
     /// drag group except the primary `self.id`. Single-item drags return
     /// `Vec::new()`. Clears `dragged_group` as a side effect (call exactly
     /// once per drop, from the `pointerup` / keyboard-drop path).
-    fn additional_from_group(self) -> Vec<DraggableId> {
+    fn additional_from_group(self) -> Vec<DraggableId<T>> {
         self.ctx.take_drag_group().into_iter().filter(|id| *id != self.id).collect()
     }
 
@@ -316,7 +324,7 @@ impl UseDraggable {
         "touch-action: none; user-select: none;"
     }
 
-    fn is_my_state(self, state: DragState) -> bool {
+    fn is_my_state(self, state: DragState<T>) -> bool {
         matches!(state,
             DragState::Pressed { id, .. } | DragState::Dragging { id, .. } if id == self.id
         )
@@ -336,12 +344,11 @@ impl UseDraggable {
 ///
 /// ```no_run
 /// use leptos::prelude::*;
-/// use taino_dnd_core::DraggableId;
 /// use taino_dnd_leptos::{provide_dnd_context, use_draggable};
 ///
 /// #[component]
 /// fn Item() -> impl IntoView {
-///     let d = use_draggable(DraggableId(1));
+///     let d = use_draggable(1);
 ///     view! {
 ///         <div
 ///             node_ref=d.node_ref
@@ -358,11 +365,14 @@ impl UseDraggable {
 ///
 /// #[component]
 /// fn App() -> impl IntoView {
-///     provide_dnd_context();
+///     provide_dnd_context::<u64>();
 ///     view! { <Item/> }
 /// }
 /// ```
-pub fn use_draggable(id: DraggableId) -> UseDraggable {
+pub fn use_draggable<T>(id: impl Into<DraggableId<T>>) -> UseDraggable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     use_draggable_with(id, Signal::derive(|| false))
 }
 
@@ -378,12 +388,11 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
 ///
 /// ```no_run
 /// use leptos::prelude::*;
-/// use taino_dnd_core::DraggableId;
 /// use taino_dnd_leptos::{provide_dnd_context, use_draggable_with};
 ///
 /// # #[component] fn Item() -> impl IntoView {
 /// let locked = RwSignal::new(true);
-/// let d = use_draggable_with(DraggableId(1), locked.into());
+/// let d = use_draggable_with(1, locked.into());
 /// view! {
 ///     <div node_ref=d.node_ref aria-disabled=move || d.disabled.get().to_string()>
 ///         "locked while `locked` is true"
@@ -391,9 +400,17 @@ pub fn use_draggable(id: DraggableId) -> UseDraggable {
 /// }
 /// # }
 /// ```
-pub fn use_draggable_with(id: DraggableId, disabled: Signal<bool>) -> UseDraggable {
+pub fn use_draggable_with<T>(
+    id: impl Into<DraggableId<T>>,
+    disabled: Signal<bool>,
+) -> UseDraggable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     let ctx = use_dnd_context();
     let node_ref = NodeRef::<Div>::new();
+
+    let id = id.into();
 
     let is_dragging = Signal::derive(move || match ctx.state.get() {
         DragState::Dragging { id: dragged, .. } | DragState::Dropping { id: dragged } => {

@@ -4,6 +4,8 @@
 //! available via Leptos's context API. Install one with [`provide_dnd_context`].
 
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
+use std::hash::Hash;
 use std::sync::Arc;
 
 use leptos::prelude::*;
@@ -16,25 +18,28 @@ use taino_dnd_core::{
 /// Stored screen-reader announcement formatter. `Send + Sync` so it fits the
 /// default (sync) `StoredValue` storage; a closure capturing only Leptos
 /// signals and `Send + Sync` data satisfies this.
-type Formatter = Arc<dyn Fn(&AnnounceEvent) -> String + Send + Sync>;
+type Formatter<T> = Arc<dyn Fn(&AnnounceEvent<T>) -> String + Send + Sync>;
 
 /// Shared drag-and-drop state installed at the root of a region that uses
 /// `taino-dnd-leptos`.
 ///
 /// `DndContext` is [`Copy`]; clone freely and pass by value.
 #[derive(Clone, Copy)]
-pub struct DndContext {
+pub struct DndContext<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// Reactive drag state. Read with `.state.get()`.
-    pub state: RwSignal<DragState>,
+    pub state: RwSignal<DragState<T>>,
     /// Registry of currently-mounted droppables, keyed by id with their last
     /// known bounding rect.
-    pub(crate) droppables: RwSignal<HashMap<DroppableId, Rect>>,
+    pub(crate) droppables: RwSignal<HashMap<DroppableId<T>, Rect>>,
     /// The droppable the pointer is currently hovering over, if any.
-    pub over: RwSignal<Option<DroppableId>>,
+    pub over: RwSignal<Option<DroppableId<T>>>,
     /// The draggable that emitted the most recent successful drop, with its
     /// destination. Cleared back to `None` when [`DndContext::clear_last_drop`]
     /// is called or when a new drag starts.
-    pub last_drop: RwSignal<Option<DropResult>>,
+    pub last_drop: RwSignal<Option<DropResult<T>>>,
     /// Latest screen-reader announcement. Mirrored into a polite ARIA live
     /// region by [`DndAnnouncer`](crate::DndAnnouncer).
     pub announcement: RwSignal<String>,
@@ -72,7 +77,7 @@ pub struct DndContext {
     /// Formatter turning an [`AnnounceEvent`] into the screen-reader string.
     /// Defaults to [`default_announcement`] (raw numeric ids); replace it with
     /// [`DndContext::set_announcement_formatter`] to emit human-readable labels.
-    pub(crate) announcement_formatter: StoredValue<Formatter>,
+    pub(crate) announcement_formatter: StoredValue<Formatter<T>>,
     /// **App-managed** multi-selection of draggables. The library never writes
     /// to this signal — your app wires its own selection UX (Ctrl-click,
     /// Shift-click, marquee select, …) and pushes the result here. When a
@@ -83,7 +88,7 @@ pub struct DndContext {
     /// See also: [`DropResult::additional`] for the rest of the group reported
     /// back at drop time, and [`DndContext::is_being_dragged`] to drive
     /// "fade the other group items in their original slots" styling.
-    pub selection: RwSignal<HashSet<DraggableId>>,
+    pub selection: RwSignal<HashSet<DraggableId<T>>>,
     /// The items currently being dragged. Populated by `use_draggable`'s
     /// pointer/keyboard pickup from the [`Self::selection`] snapshot at drag
     /// start: a singleton `[id]` for single drags, the full selection
@@ -92,7 +97,7 @@ pub struct DndContext {
     /// read it (e.g. to render a "+N more" badge on the drag overlay) but
     /// never `set` it. The most common read is via
     /// [`DndContext::is_being_dragged`].
-    pub dragged_group: RwSignal<Vec<DraggableId>>,
+    pub dragged_group: RwSignal<Vec<DraggableId<T>>>,
 }
 
 /// Duration of the drop-settle overlay animation, in milliseconds. The
@@ -111,23 +116,29 @@ pub(crate) const DROP_ANIMATION_MS: u64 = 200;
 /// members — the app applies the move to `draggable` and to each
 /// `additional` id in turn.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct DropResult {
+pub struct DropResult<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// The draggable the user actually pressed on / picked up — the *primary*
     /// of the drag. Always present, even in multi-drag.
-    pub draggable: DraggableId,
+    pub draggable: DraggableId<T>,
     /// The droppable the pointer was over at the moment of release, if any.
     /// `None` means the drag ended outside any registered droppable.
-    pub over: Option<DroppableId>,
+    pub over: Option<DroppableId<T>>,
     /// Other items being dragged together with `draggable`, for multi-drag.
     /// Empty for single-item drags. Sorted by ascending id (the
     /// [`taino_dnd_core::drag_group`] contract) — **not** the app's list
     /// order, which the library doesn't know. Treat it as a set: reinsert
     /// the group in your own list order when applying the drop (see
     /// `examples/multi-select-list`'s `reorder_group`).
-    pub additional: Vec<DraggableId>,
+    pub additional: Vec<DraggableId<T>>,
 }
 
-impl Default for DndContext {
+impl<T> Default for DndContext<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     fn default() -> Self {
         Self {
             state: RwSignal::new(DragState::Idle),
@@ -141,14 +152,17 @@ impl Default for DndContext {
             restrict_container: RwSignal::new(None),
             dragged_element_rect: RwSignal::new(None),
             drop_target: RwSignal::new(None),
-            announcement_formatter: StoredValue::new(Arc::new(default_announcement) as Formatter),
+            announcement_formatter: StoredValue::new(Arc::new(default_announcement) as Formatter<T>),
             selection: RwSignal::new(HashSet::new()),
             dragged_group: RwSignal::new(Vec::new()),
         }
     }
 }
 
-impl DndContext {
+impl<T> DndContext<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// Register or update the bounding rect for a droppable.
     ///
     /// Only the wasm32 build path calls this; native builds keep the registry
@@ -157,7 +171,7 @@ impl DndContext {
     /// **Short-circuits** when the stored rect already matches `rect`,
     /// avoiding a redundant notification to all subscribers.
     #[cfg_attr(not(target_arch = "wasm32"), allow(dead_code))]
-    pub(crate) fn upsert_droppable(self, id: DroppableId, rect: Rect) {
+    pub(crate) fn upsert_droppable(self, id: DroppableId<T>, rect: Rect) {
         let dominated = self.droppables.with_untracked(|map| map.get(&id) == Some(&rect));
         if dominated {
             return;
@@ -168,7 +182,7 @@ impl DndContext {
     }
 
     /// Remove a droppable from the registry (call on unmount).
-    pub(crate) fn remove_droppable(self, id: DroppableId) {
+    pub(crate) fn remove_droppable(self, id: DroppableId<T>) {
         self.droppables.update(|map| {
             map.remove(&id);
         });
@@ -206,7 +220,7 @@ impl DndContext {
     /// multi-zone demos that need to run
     /// [`taino_dnd_core::live_displacements`] separately per zone with
     /// only that zone's cards.
-    pub fn with_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId, Rect>) -> R) -> R {
+    pub fn with_droppables<R>(self, f: impl FnOnce(&HashMap<DroppableId<T>, Rect>) -> R) -> R {
         self.droppables.with(f)
     }
 
@@ -224,14 +238,14 @@ impl DndContext {
     /// so a `class:in-group=move || ctx.is_being_dragged(id)` updates as the
     /// drag starts and ends. If you want a one-shot untracked read, use
     /// `ctx.dragged_group.with_untracked(|g| g.contains(&id))` directly.
-    pub fn is_being_dragged(self, id: DraggableId) -> bool {
+    pub fn is_being_dragged(self, id: DraggableId<T>) -> bool {
         self.dragged_group.with(|g| g.contains(&id))
     }
 
     /// `true` if `id` is in [`Self::selection`]. Convenience over
     /// `ctx.selection.with(|s| s.contains(&id))` — same thing, easier to
     /// read in components driving multi-select highlighting.
-    pub fn is_selected(self, id: DraggableId) -> bool {
+    pub fn is_selected(self, id: DraggableId<T>) -> bool {
         self.selection.with(|s| s.contains(&id))
     }
 
@@ -239,7 +253,7 @@ impl DndContext {
     /// start. Delegates the grouping decision to the pure
     /// [`taino_dnd_core::drag_group`]: `[primary, ...rest sorted by id]`
     /// when `primary` is in a multi-item selection, `[primary]` otherwise.
-    pub(crate) fn begin_drag_group(self, primary: DraggableId) {
+    pub(crate) fn begin_drag_group(self, primary: DraggableId<T>) {
         let group = self.selection.with_untracked(|sel| taino_dnd_core::drag_group(primary, sel));
         self.dragged_group.set(group);
     }
@@ -247,7 +261,7 @@ impl DndContext {
     /// Snapshot the current group as `(primary, additional)` and clear it.
     /// Called from `on_pointer_up` / keyboard drop so the rest of the group
     /// rides along in [`DropResult::additional`].
-    pub(crate) fn take_drag_group(self) -> Vec<DraggableId> {
+    pub(crate) fn take_drag_group(self) -> Vec<DraggableId<T>> {
         let group = self.dragged_group.get_untracked();
         if !group.is_empty() {
             self.dragged_group.set(Vec::new());
@@ -265,7 +279,7 @@ impl DndContext {
     /// hits a borrow-conflict footgun) and avoids the double-trigger
     /// edge case where the effect re-fires once for the set and once
     /// for the clear.
-    pub fn take_last_drop(self) -> Option<DropResult> {
+    pub fn take_last_drop(self) -> Option<DropResult<T>> {
         let value = self.last_drop.get();
         if value.is_some() {
             self.last_drop.set(None);
@@ -286,7 +300,7 @@ impl DndContext {
     /// overlay would stay glued to the source position and the
     /// keyboard user would see "an invisible something" opening up the
     /// gap.
-    pub(crate) fn keyboard_step(self, direction: Direction) -> Option<DroppableId> {
+    pub(crate) fn keyboard_step(self, direction: Direction) -> Option<DroppableId<T>> {
         let from = self.over.get_untracked()?;
         let next = self
             .droppables
@@ -355,13 +369,13 @@ impl DndContext {
     /// ```
     pub fn set_announcement_formatter(
         self,
-        formatter: impl Fn(&AnnounceEvent) -> String + Send + Sync + 'static,
+        formatter: impl Fn(&AnnounceEvent<T>) -> String + Send + Sync + 'static,
     ) {
         self.announcement_formatter.set_value(Arc::new(formatter));
     }
 
     /// Format `event` with the current formatter and push it to the live region.
-    pub(crate) fn announce_event(self, event: AnnounceEvent) {
+    pub(crate) fn announce_event(self, event: AnnounceEvent<T>) {
         let msg = self.announcement_formatter.with_value(|f| f(&event));
         self.announce(msg);
     }
@@ -496,7 +510,10 @@ impl DndContext {
 /// via `ctx.auto_scroll.update(|c| c.enabled = false)`.
 ///
 /// Returns the context so the caller can keep a handle if desired.
-pub fn provide_dnd_context() -> DndContext {
+pub fn provide_dnd_context<T>() -> DndContext<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     let ctx = DndContext::default();
     provide_context(ctx);
     crate::autoscroll::install(ctx);
@@ -521,11 +538,14 @@ pub fn provide_dnd_context() -> DndContext {
 /// Panics if no `DndContext` has been provided in an ancestor. This is intentional:
 /// calling a drag-and-drop hook outside a drag-and-drop scope is a programmer
 /// error, not a recoverable runtime condition.
-pub fn use_dnd_context() -> DndContext {
+pub fn use_dnd_context<T>() -> DndContext<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     // Intentional panic: see the doc-comment above. The `expect_used` lint is
     // crate-warn by default; this is the one documented exception.
     #[allow(clippy::expect_used)]
-    use_context::<DndContext>()
+    use_context::<DndContext<T>>()
         .expect("taino-dnd: provide_dnd_context() must be called in an ancestor")
 }
 
@@ -540,7 +560,7 @@ mod tests {
     use super::*;
     use leptos::reactive::owner::Owner;
 
-    fn with_ctx(f: impl FnOnce(DndContext)) {
+    fn with_ctx(f: impl FnOnce(DndContext<u64>)) {
         let owner = Owner::new();
         owner.set();
         f(DndContext::default());

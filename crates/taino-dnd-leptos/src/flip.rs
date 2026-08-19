@@ -19,6 +19,8 @@
 
 #![allow(clippy::redundant_pub_crate)]
 
+use std::{fmt::Debug, hash::Hash};
+
 use leptos::{html::Div, prelude::*};
 
 /// Configuration for [`use_flip_with`]. The default is 220 ms with a
@@ -55,19 +57,27 @@ impl Default for FlipConfig {
 ///     view! { <div node_ref=z.node_ref class="row">"item"</div> }
 /// }
 /// ```
-pub fn use_flip(node_ref: NodeRef<Div>) {
-    use_flip_with(node_ref, FlipConfig::default());
+pub fn use_flip<T>(node_ref: NodeRef<Div>)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
+    use_flip_with::<T>(node_ref, FlipConfig::default());
 }
 
 /// Like [`use_flip`] but with a custom [`FlipConfig`].
 #[cfg_attr(not(target_arch = "wasm32"), allow(clippy::missing_const_for_fn, unused_variables))]
-pub fn use_flip_with(node_ref: NodeRef<Div>, config: FlipConfig) {
+pub fn use_flip_with<T>(node_ref: NodeRef<Div>, config: FlipConfig)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     #[cfg(target_arch = "wasm32")]
-    imp::install(node_ref, config);
+    imp::install::<T>(node_ref, config);
 }
 
 #[cfg(target_arch = "wasm32")]
 mod imp {
+    use std::{fmt::Debug, hash::Hash};
+
     use leptos::{html::Div, prelude::*};
     use taino_dnd_core::{DragState, Rect};
     use wasm_bindgen::JsCast;
@@ -75,8 +85,11 @@ mod imp {
     use super::FlipConfig;
     use crate::context::use_dnd_context;
 
-    pub(super) fn install(node_ref: NodeRef<Div>, config: FlipConfig) {
-        let ctx = use_dnd_context();
+    pub(super) fn install<T>(node_ref: NodeRef<Div>, config: FlipConfig)
+    where
+        T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+    {
+        let ctx = use_dnd_context::<T>();
         let last_rect = StoredValue::new(None::<Rect>);
 
         Effect::new(move |_| {

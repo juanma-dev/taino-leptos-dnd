@@ -26,20 +26,30 @@
 
 #![allow(clippy::redundant_pub_crate)]
 
+use std::{fmt::Debug, hash::Hash};
+
 use crate::context::DndContext;
 
 #[cfg(target_arch = "wasm32")]
-pub(crate) fn install(ctx: DndContext) {
+pub(crate) fn install<T>(ctx: DndContext<T>)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     imp::install(ctx);
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) const fn install(_ctx: DndContext) {}
+pub(crate) const fn install<T>(_ctx: DndContext<T>)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
+}
 
 #[cfg(target_arch = "wasm32")]
 mod imp {
     use std::cell::Cell;
     use std::{cell::RefCell, rc::Rc};
+    use std::{fmt::Debug, hash::Hash};
 
     use leptos::prelude::*;
     use taino_dnd_core::{scroll_velocity, DragState, Rect};
@@ -49,7 +59,10 @@ mod imp {
 
     type CbCell = Rc<RefCell<Option<Closure<dyn FnMut()>>>>;
 
-    pub(super) fn install(ctx: DndContext) {
+    pub(super) fn install<T>(ctx: DndContext<T>)
+    where
+        T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+    {
         // Shared window-scroll tracker. The scroll listener computes the
         // delta from this value on each window scroll and updates it.
         let last_scroll = Rc::new(Cell::new(read_window_scroll()));
@@ -85,7 +98,10 @@ mod imp {
     /// scroll while dragging — programmatic (the RAF loop's `scrollBy` /
     /// `scrollTop`) and user-initiated (wheel, trackpad, scrollbar), for both
     /// the window and any overflow container.
-    fn install_scroll_listener(ctx: DndContext, last_scroll: Rc<Cell<(f64, f64)>>) {
+    fn install_scroll_listener<T>(ctx: DndContext<T>, last_scroll: Rc<Cell<(f64, f64)>>)
+    where
+        T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+    {
         let Some(win) = web_sys::window() else {
             return;
         };
@@ -140,7 +156,10 @@ mod imp {
         listener.forget();
     }
 
-    fn start_loop(ctx: DndContext, generation: &Rc<Cell<u64>>) {
+    fn start_loop<T>(ctx: DndContext<T>, generation: &Rc<Cell<u64>>)
+    where
+        T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+    {
         let Some(win) = web_sys::window() else {
             return;
         };

@@ -12,41 +12,49 @@
 //! your domain labels there. Keeping the formatter app-side means it composes
 //! with i18n and never needs the core to carry label strings.
 
+use std::{fmt::Debug, hash::Hash};
+
 use crate::state::{DraggableId, DroppableId};
 
 /// A drag-lifecycle event worth announcing to assistive technology.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AnnounceEvent {
+pub enum AnnounceEvent<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// The draggable was picked up — a drag began.
     PickedUp {
         /// The draggable that was picked up.
-        draggable: DraggableId,
+        draggable: DraggableId<T>,
     },
     /// The pointer (or keyboard selection) moved over a droppable, or off all
     /// of them (`over` is `None`).
     MovedOver {
         /// The draggable being moved.
-        draggable: DraggableId,
+        draggable: DraggableId<T>,
         /// The droppable now under the drag, if any.
-        over: Option<DroppableId>,
+        over: Option<DroppableId<T>>,
     },
     /// The draggable was released.
     Dropped {
         /// The draggable that was dropped.
-        draggable: DraggableId,
+        draggable: DraggableId<T>,
         /// The droppable it landed on, if any.
-        over: Option<DroppableId>,
+        over: Option<DroppableId<T>>,
     },
     /// The drag was cancelled (Escape / `pointercancel`), restoring position.
     Cancelled {
         /// The draggable whose drag was cancelled.
-        draggable: DraggableId,
+        draggable: DraggableId<T>,
     },
 }
 
-impl AnnounceEvent {
+impl<T> AnnounceEvent<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// The draggable this event concerns.
-    pub const fn draggable(self) -> DraggableId {
+    pub const fn draggable(self) -> DraggableId<T> {
         match self {
             Self::PickedUp { draggable }
             | Self::MovedOver { draggable, .. }
@@ -62,26 +70,29 @@ impl AnnounceEvent {
 /// produce human-readable, localized messages instead. This is the fallback
 /// used when no formatter is set.
 #[must_use]
-pub fn default_announcement(event: &AnnounceEvent) -> String {
+pub fn default_announcement<T>(event: &AnnounceEvent<T>) -> String
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     match *event {
         AnnounceEvent::PickedUp { draggable } => format!(
-            "Picked up item {}. Use arrow keys to move, space or enter to drop, escape to cancel.",
+            "Picked up item {:?}. Use arrow keys to move, space or enter to drop, escape to cancel.",
             draggable.0
         ),
         AnnounceEvent::MovedOver { draggable, over: Some(over) } => {
-            format!("Item {} moved over target {}.", draggable.0, over.0)
+            format!("Item {:?} moved over target {:?}.", draggable.0, over.0)
         }
         AnnounceEvent::MovedOver { draggable, over: None } => {
-            format!("Item {} is not over a target.", draggable.0)
+            format!("Item {:?} is not over a target.", draggable.0)
         }
         AnnounceEvent::Dropped { draggable, over: Some(over) } => {
-            format!("Dropped item {} on target {}.", draggable.0, over.0)
+            format!("Dropped item {:?} on target {:?}.", draggable.0, over.0)
         }
         AnnounceEvent::Dropped { draggable, over: None } => {
-            format!("Dropped item {} outside any target.", draggable.0)
+            format!("Dropped item {:?} outside any target.", draggable.0)
         }
         AnnounceEvent::Cancelled { draggable } => {
-            format!("Cancelled drag of item {}.", draggable.0)
+            format!("Cancelled drag of item {:?}.", draggable.0)
         }
     }
 }
