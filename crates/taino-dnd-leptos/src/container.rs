@@ -3,6 +3,8 @@
 //! Pairs with [`Modifier::RestrictToParent`](taino_dnd_core::Modifier) to
 //! constrain drags inside a user-chosen container element.
 
+use std::{fmt::Debug, hash::Hash};
+
 use leptos::{html::Div, prelude::*};
 
 use crate::context::use_dnd_context;
@@ -32,8 +34,11 @@ use crate::context::use_dnd_context;
 ///     }
 /// }
 /// ```
-pub fn use_drag_container() -> NodeRef<Div> {
-    let ctx = use_dnd_context();
+pub fn use_drag_container<T>() -> NodeRef<Div>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
+    let ctx = use_dnd_context::<T>();
     let node_ref = NodeRef::<Div>::new();
 
     #[cfg(target_arch = "wasm32")]

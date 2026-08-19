@@ -16,34 +16,61 @@
 //! The machine is intentionally minimal in Stage 1. Stage 2 will add a
 //! keyboard-driven path (Space → Dragging, Esc → cancel).
 
+use std::{fmt::Debug, hash::Hash};
+
 use crate::{error::Error, geometry::Point};
 
 /// Opaque identifier for a draggable element.
 ///
 /// User code is responsible for keeping IDs unique within a single `DndContext`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct DraggableId(pub u64);
+pub struct DraggableId<T>(pub T)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord;
+
+impl<T> From<T> for DraggableId<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
 
 /// Opaque identifier for a drop target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct DroppableId(pub u64);
+pub struct DroppableId<T>(pub T)
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord;
+
+impl<T> From<T> for DroppableId<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
+    fn from(value: T) -> Self {
+        Self(value)
+    }
+}
 
 /// The current state of a drag interaction.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DragState {
+pub enum DragState<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// No drag in progress.
     Idle,
     /// Pointer is down on a draggable but has not yet moved past the threshold.
     Pressed {
         /// The draggable the user pressed on.
-        id: DraggableId,
+        id: DraggableId<T>,
         /// Pointer position when the press started (CSS pixels).
         start: Point,
     },
     /// Pointer has moved past the threshold; this is an active drag.
     Dragging {
         /// The draggable being dragged.
-        id: DraggableId,
+        id: DraggableId<T>,
         /// Pointer position when the press started.
         start: Point,
         /// Current pointer position.
@@ -53,16 +80,19 @@ pub enum DragState {
     /// transitioning back to [`DragState::Idle`].
     Dropping {
         /// The draggable that was dropped.
-        id: DraggableId,
+        id: DraggableId<T>,
     },
 }
 
-impl DragState {
+impl<T> DragState<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// The id associated with the current state, if any.
     ///
     /// Returns `Some` for [`Self::Pressed`], [`Self::Dragging`], and
     /// [`Self::Dropping`]; `None` for [`Self::Idle`].
-    pub const fn dragged_id(self) -> Option<DraggableId> {
+    pub const fn dragged_id(self) -> Option<DraggableId<T>> {
         match self {
             Self::Idle => None,
             Self::Pressed { id, .. } | Self::Dragging { id, .. } | Self::Dropping { id } => {
@@ -88,11 +118,14 @@ impl DragState {
 
 /// Events that drive [`DragState`] transitions.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum DragEvent {
+pub enum DragEvent<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     /// A pointer pressed on a draggable.
     PointerDown {
         /// Draggable that was pressed.
-        id: DraggableId,
+        id: DraggableId<T>,
         /// Pointer position.
         at: Point,
     },
@@ -113,14 +146,17 @@ pub enum DragEvent {
     /// transitions straight to [`DragState::Dragging`].
     KeyboardPickUp {
         /// Draggable being picked up.
-        id: DraggableId,
+        id: DraggableId<T>,
         /// Initial position to record as both `start` and `current`. Most callers
         /// pass the element's bounding-rect center.
         at: Point,
     },
 }
 
-impl DragEvent {
+impl<T> DragEvent<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     const fn name(self) -> &'static str {
         match self {
             Self::PointerDown { .. } => "PointerDown",
@@ -164,7 +200,14 @@ pub const DEFAULT_DRAG_THRESHOLD: f64 = 5.0;
 // They are kept separate on purpose: collapsing them would erase the semantic
 // distinction between "user aborted mid-drag" and "drop animation finished".
 #[allow(clippy::match_same_arms)]
-pub fn transition(state: DragState, event: DragEvent, threshold: f64) -> Result<DragState, Error> {
+pub fn transition<T>(
+    state: DragState<T>,
+    event: DragEvent<T>,
+    threshold: f64,
+) -> Result<DragState<T>, Error>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+{
     match (state, event) {
         // Idle → Pressed
         (DragState::Idle, DragEvent::PointerDown { id, at }) => {
@@ -299,7 +342,7 @@ mod tests {
     fn dragged_id_reports_for_each_active_state() {
         let id = DraggableId(7);
         let at = Point::new(1.0, 2.0);
-        assert_eq!(DragState::Idle.dragged_id(), None);
+        assert_eq!(DragState::<u64>::Idle.dragged_id(), None);
         assert_eq!(DragState::Pressed { id, start: at }.dragged_id(), Some(id));
         assert_eq!(DragState::Dragging { id, start: at, current: at }.dragged_id(), Some(id));
         assert_eq!(DragState::Dropping { id }.dragged_id(), Some(id));
@@ -309,7 +352,7 @@ mod tests {
     fn is_dragging_only_true_for_dragging() {
         let id = DraggableId(7);
         let at = Point::new(1.0, 2.0);
-        assert!(!DragState::Idle.is_dragging());
+        assert!(!DragState::<u64>::Idle.is_dragging());
         assert!(!DragState::Pressed { id, start: at }.is_dragging());
         assert!(DragState::Dragging { id, start: at, current: at }.is_dragging());
         assert!(!DragState::Dropping { id }.is_dragging());
@@ -334,7 +377,7 @@ mod tests {
 
     #[test]
     fn invalid_transition_reports_event_and_state() {
-        let err = transition(DragState::Idle, DragEvent::PointerUp, T).unwrap_err();
+        let err = transition(DragState::<u64>::Idle, DragEvent::PointerUp, T).unwrap_err();
         let msg = err.to_string();
         assert!(msg.contains("PointerUp"));
         assert!(msg.contains("Idle"));

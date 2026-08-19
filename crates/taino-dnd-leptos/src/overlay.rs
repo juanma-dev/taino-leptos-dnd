@@ -19,6 +19,8 @@
 // lint can't see through, just like `DndAnnouncer`.
 #![allow(unreachable_pub)]
 
+use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+
 use leptos::prelude::*;
 use taino_dnd_core::{DragState, Vector};
 
@@ -46,22 +48,28 @@ use crate::context::{use_dnd_context, DROP_ANIMATION_MS};
 ///
 /// #[component]
 /// fn App() -> impl IntoView {
-///     provide_dnd_context();
+///     provide_dnd_context::<u64>();
 ///     view! {
-///         <DragOverlay>
+///         <DragOverlay<u64>>
 ///             {move || {
-///                 let ctx = use_dnd_context();
+///                 let ctx = use_dnd_context::<u64>();
 ///                 ctx.state.get().dragged_id().map(|id| view! {
 ///                     <div class="overlay-card">{format!("Item #{}", id.0)}</div>
 ///                 })
 ///             }}
-///         </DragOverlay>
+///         </DragOverlay<u64>>
 ///     }
 /// }
 /// ```
 #[component]
-pub fn DragOverlay(children: ChildrenFn) -> impl IntoView {
-    let ctx = use_dnd_context();
+pub fn DragOverlay<T>(
+    children: ChildrenFn,
+    #[prop(optional)] _marker: PhantomData<T>,
+) -> impl IntoView
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
+    let ctx = use_dnd_context::<T>();
 
     let style = move || {
         // The overlay container is sized to the dragged element's original

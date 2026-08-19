@@ -13,7 +13,7 @@
 //! used in this demo so the two ranges can be distinguished cheaply.
 
 use leptos::prelude::*;
-use taino_dnd_core::{AnnounceEvent, DraggableId, DroppableId};
+use taino_dnd_core::AnnounceEvent;
 use taino_dnd_leptos::{
     provide_dnd_context, use_dnd_context, use_draggable, use_droppable, use_flip, DndAnnouncer,
     DragOverlay,
@@ -21,12 +21,12 @@ use taino_dnd_leptos::{
 
 const COLUMN_TAIL_BASE: u64 = 10_000;
 
-const fn column_tail_id(idx: usize) -> DroppableId {
-    DroppableId(COLUMN_TAIL_BASE + idx as u64)
+const fn column_tail_id(idx: usize) -> u64 {
+    COLUMN_TAIL_BASE + idx as u64
 }
 
-fn column_idx_from_tail(id: DroppableId) -> Option<usize> {
-    id.0.checked_sub(COLUMN_TAIL_BASE).and_then(|i| usize::try_from(i).ok())
+fn column_idx_from_tail(id: u64) -> Option<usize> {
+    id.checked_sub(COLUMN_TAIL_BASE).and_then(|i| usize::try_from(i).ok())
 }
 
 #[derive(Clone)]
@@ -71,7 +71,7 @@ fn App() -> impl IntoView {
         if let Some(drop) = ctx.take_last_drop() {
             if let Some(over) = drop.over {
                 if drop.draggable.0 != over.0 {
-                    columns.update(|cols| move_card(cols, drop.draggable.0, over));
+                    columns.update(|cols| move_card(cols, drop.draggable.0, over.0));
                 }
             }
         }
@@ -80,7 +80,7 @@ fn App() -> impl IntoView {
     let col_count = Signal::derive(move || columns.with(Vec::len));
 
     view! {
-        <DndAnnouncer/>
+        <DndAnnouncer<u64> />
         <h1>"taino-leptos-dnd — kanban"</h1>
         <p class="hint">
             "Drag cards across columns to move, or within a column to reorder. \
@@ -95,9 +95,9 @@ fn App() -> impl IntoView {
                 children=move |idx| view! { <ColumnView idx=idx columns=columns /> }
             />
         </div>
-        <DragOverlay>
+        <DragOverlay<u64>>
             {move || {
-                let ctx = use_dnd_context();
+                let ctx = use_dnd_context::<u64>();
                 ctx.state.get().dragged_id().and_then(|id| {
                     columns
                         .with(|cols| {
@@ -109,7 +109,7 @@ fn App() -> impl IntoView {
                         .map(|title| view! { <div class="overlay-card">{title}</div> })
                 })
             }}
-        </DragOverlay>
+        </DragOverlay<u64>>
         <footer>"Stage 2 demo · v0.0.1"</footer>
     }
 }
@@ -151,9 +151,9 @@ fn ColumnView(idx: usize, columns: RwSignal<Vec<Column>>) -> impl IntoView {
 #[component]
 fn CardView(card: Card) -> impl IntoView {
     let id = card.id;
-    let d = use_draggable(DraggableId(id));
-    let z = use_droppable(DroppableId(id));
-    use_flip(z.node_ref);
+    let d = use_draggable(id);
+    let z = use_droppable(id);
+    use_flip::<u64>(z.node_ref);
     let label = card.title.clone();
 
     view! {
@@ -184,7 +184,7 @@ fn CardView(card: Card) -> impl IntoView {
 /// `to` may be either a card-slot droppable (insert *before* that card,
 /// possibly in another column) or a column-tail droppable (append at the end
 /// of that column). Source and destination columns can differ.
-fn move_card(cols: &mut [Column], from: u64, to: DroppableId) {
+fn move_card(cols: &mut [Column], from: u64, to: u64) {
     let Some((src_col, src_idx)) = locate(cols, from) else { return };
 
     // Resolve the destination **before** removing the source. Locating
@@ -201,7 +201,7 @@ fn move_card(cols: &mut [Column], from: u64, to: DroppableId) {
         return;
     }
 
-    let Some((dest_col, dest_idx)) = locate(cols, to.0) else { return };
+    let Some((dest_col, dest_idx)) = locate(cols, to) else { return };
     if (src_col, src_idx) == (dest_col, dest_idx) {
         return; // dropped on self — no-op
     }
@@ -227,14 +227,14 @@ fn card(id: u64, title: &str) -> Card {
 
 /// Human-readable screen-reader text for a drag-lifecycle event, resolving
 /// numeric ids to card titles and column names.
-fn announce(columns: RwSignal<Vec<Column>>, ev: &AnnounceEvent) -> String {
+fn announce(columns: RwSignal<Vec<Column>>, ev: &AnnounceEvent<u64>) -> String {
     let card_title = |id: u64| {
         columns.with_untracked(|cols| {
             cols.iter().flat_map(|c| c.cards.iter()).find(|c| c.id == id).map(|c| c.title.clone())
         })
     };
     let title = |id: u64| card_title(id).unwrap_or_else(|| format!("item {id}"));
-    let target = |over: Option<DroppableId>| -> String {
+    let target = |over: Option<u64>| -> String {
         let Some(o) = over else { return "no column".to_owned() };
         if let Some(col) = column_idx_from_tail(o) {
             return columns.with_untracked(|cols| {
@@ -242,15 +242,15 @@ fn announce(columns: RwSignal<Vec<Column>>, ev: &AnnounceEvent) -> String {
                     .map_or_else(|| "a column".to_owned(), |c| format!("the end of {}", c.title))
             });
         }
-        card_title(o.0).map_or_else(|| "a card".to_owned(), |t| format!("before \"{t}\""))
+        card_title(o).map_or_else(|| "a card".to_owned(), |t| format!("before \"{t}\""))
     };
     match *ev {
         AnnounceEvent::PickedUp { draggable } => format!("Picked up \"{}\".", title(draggable.0)),
         AnnounceEvent::MovedOver { draggable, over } => {
-            format!("\"{}\" moved to {}.", title(draggable.0), target(over))
+            format!("\"{}\" moved to {}.", title(draggable.0), target(over.map(|o| o.0)))
         }
         AnnounceEvent::Dropped { draggable, over } => {
-            format!("Dropped \"{}\" at {}.", title(draggable.0), target(over))
+            format!("Dropped \"{}\" at {}.", title(draggable.0), target(over.map(|o| o.0)))
         }
         AnnounceEvent::Cancelled { draggable } => {
             format!("Cancelled dragging \"{}\".", title(draggable.0))

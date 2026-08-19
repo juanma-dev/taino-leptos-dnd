@@ -54,8 +54,8 @@ use taino_dnd_leptos::{
 
 #[component]
 fn Row(id: u64, label: String) -> impl IntoView {
-    let d = use_draggable(DraggableId(id));
-    let z = use_droppable(DroppableId(id));
+    let d = use_draggable(id);
+    let z = use_droppable(id);
     view! {
         <div node_ref=z.node_ref class:over=move || z.is_over.get()>
             <div

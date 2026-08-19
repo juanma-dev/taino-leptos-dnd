@@ -14,6 +14,8 @@
 //!   relative to a starting droppable. Used by the keyboard sensor to handle
 //!   arrow keys.
 
+use std::{fmt::Debug, hash::Hash};
+
 use crate::{
     geometry::{Point, Rect},
     state::DroppableId,
@@ -63,9 +65,10 @@ pub enum Direction {
 /// // Inside zone 2 → zone 2.
 /// assert_eq!(pointer_within(Point::new(250.0, 50.0), zones), Some(DroppableId(2)));
 /// ```
-pub fn pointer_within<I>(pointer: Point, droppables: I) -> Option<DroppableId>
+pub fn pointer_within<T, I>(pointer: Point, droppables: I) -> Option<DroppableId<T>>
 where
-    I: IntoIterator<Item = (DroppableId, Rect)>,
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+    I: IntoIterator<Item = (DroppableId<T>, Rect)>,
 {
     droppables
         .into_iter()
@@ -99,9 +102,10 @@ where
 /// let near_second = closest_center(Point::new(240.0, 40.0), zones.iter().copied());
 /// assert_eq!(near_second, Some(DroppableId(2)));
 /// ```
-pub fn closest_center<I>(pointer: Point, droppables: I) -> Option<DroppableId>
+pub fn closest_center<T, I>(pointer: Point, droppables: I) -> Option<DroppableId<T>>
 where
-    I: IntoIterator<Item = (DroppableId, Rect)>,
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+    I: IntoIterator<Item = (DroppableId<T>, Rect)>,
 {
     droppables
         .into_iter()
@@ -145,15 +149,16 @@ where
 ///     None,
 /// );
 /// ```
-pub fn spatial_neighbor<I>(
-    from: DroppableId,
+pub fn spatial_neighbor<T, I>(
+    from: DroppableId<T>,
     direction: Direction,
     droppables: I,
-) -> Option<DroppableId>
+) -> Option<DroppableId<T>>
 where
-    I: IntoIterator<Item = (DroppableId, Rect)>,
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord,
+    I: IntoIterator<Item = (DroppableId<T>, Rect)>,
 {
-    let zones: Vec<(DroppableId, Rect)> = droppables.into_iter().collect();
+    let zones: Vec<(DroppableId<T>, Rect)> = droppables.into_iter().collect();
     let origin = zones.iter().find(|(id, _)| *id == from).map(|(_, r)| r.center())?;
 
     zones
@@ -183,13 +188,13 @@ where
 mod tests {
     use super::*;
 
-    fn zone(id: u64, x: f64, y: f64, w: f64, h: f64) -> (DroppableId, Rect) {
+    fn zone(id: u64, x: f64, y: f64, w: f64, h: f64) -> (DroppableId<u64>, Rect) {
         (DroppableId(id), Rect::new(x, y, w, h))
     }
 
     #[test]
     fn pointer_within_empty_returns_none() {
-        assert!(pointer_within(Point::new(0.0, 0.0), std::iter::empty()).is_none());
+        assert!(pointer_within::<u64, _>(Point::new(0.0, 0.0), std::iter::empty()).is_none());
     }
 
     #[test]
@@ -233,7 +238,7 @@ mod tests {
 
     #[test]
     fn closest_center_empty_returns_none() {
-        assert!(closest_center(Point::new(0.0, 0.0), std::iter::empty()).is_none());
+        assert!(closest_center::<u64, _>(Point::new(0.0, 0.0), std::iter::empty()).is_none());
     }
 
     #[test]
@@ -256,7 +261,7 @@ mod tests {
         assert_eq!(closest_center(Point::new(0.0, 0.0), zones), Some(DroppableId(1)));
     }
 
-    fn vertical_list() -> [(DroppableId, Rect); 3] {
+    fn vertical_list() -> [(DroppableId<u64>, Rect); 3] {
         [
             zone(1, 0.0, 0.0, 80.0, 40.0),
             zone(2, 0.0, 50.0, 80.0, 40.0),

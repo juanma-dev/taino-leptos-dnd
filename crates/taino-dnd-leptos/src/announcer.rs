@@ -18,6 +18,8 @@
 // expansion to know the function is actually reachable, so we silence it here.
 #![allow(unreachable_pub)]
 
+use std::{fmt::Debug, hash::Hash, marker::PhantomData};
+
 use leptos::prelude::*;
 
 use crate::context::use_dnd_context;
@@ -31,8 +33,11 @@ use crate::context::use_dnd_context;
 /// The element is visible only to assistive technology; it is rendered
 /// off-screen using the standard "sr-only" CSS technique.
 #[component]
-pub fn DndAnnouncer() -> impl IntoView {
-    let ctx = use_dnd_context();
+pub fn DndAnnouncer<T>(#[prop(optional)] _marker: PhantomData<T>) -> impl IntoView
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
+    let ctx = use_dnd_context::<T>();
     view! {
         <div
             role="alert"

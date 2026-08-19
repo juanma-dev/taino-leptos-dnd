@@ -1,5 +1,7 @@
 //! The [`use_droppable`] hook.
 
+use std::{fmt::Debug, hash::Hash};
+
 use leptos::{html::Div, prelude::*};
 #[cfg(target_arch = "wasm32")]
 use taino_dnd_core::DragState;
@@ -10,7 +12,10 @@ use crate::context::{use_dnd_context, DndContext};
 /// Handle returned by [`use_droppable`]. Wire its `node_ref` to your element
 /// and read `is_over` for hover styling.
 #[derive(Clone, Copy)]
-pub struct UseDroppable {
+pub struct UseDroppable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// Attach to the element with `node_ref={handle.node_ref}`.
     pub node_ref: NodeRef<Div>,
     /// `true` while a drag is in progress and the pointer is closest to this
@@ -25,17 +30,20 @@ pub struct UseDroppable {
     /// or read raw if you need full control of the transition.
     pub displacement: Signal<(f64, f64)>,
     /// The identifier this hook was instantiated with.
-    pub id: DroppableId,
+    pub id: DroppableId<T>,
     /// Reactive disabled flag. While `true`, this droppable is removed from
     /// the registry: it's never reported as `over`, never participates in the
     /// drop-preview, and can't receive a drop. Always `false` for
     /// [`use_droppable`]; set via [`use_droppable_with`].
     pub disabled: Signal<bool>,
     #[allow(dead_code)]
-    ctx: DndContext,
+    ctx: DndContext<T>,
 }
 
-impl UseDroppable {
+impl<T> UseDroppable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     /// Inline CSS for the drop-preview transform.
     ///
     /// Returns `transform: translate(...); transition: transform 220ms ...;`
@@ -80,7 +88,10 @@ impl UseDroppable {
 ///     }
 /// }
 /// ```
-pub fn use_droppable(id: DroppableId) -> UseDroppable {
+pub fn use_droppable<T>(id: impl Into<DroppableId<T>>) -> UseDroppable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     use_droppable_with(id, Signal::derive(|| false))
 }
 
@@ -95,18 +106,25 @@ pub fn use_droppable(id: DroppableId) -> UseDroppable {
 ///
 /// ```no_run
 /// use leptos::prelude::*;
-/// use taino_dnd_core::DroppableId;
 /// use taino_dnd_leptos::{provide_dnd_context, use_droppable_with};
 ///
 /// # #[component] fn Zone() -> impl IntoView {
 /// let full = RwSignal::new(true);
-/// let z = use_droppable_with(DroppableId(9), full.into());
+/// let z = use_droppable_with(9, full.into());
 /// view! { <div node_ref=z.node_ref class:full=move || z.disabled.get()>"zone"</div> }
 /// # }
 /// ```
-pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppable {
+pub fn use_droppable_with<T>(
+    id: impl Into<DroppableId<T>>,
+    disabled: Signal<bool>,
+) -> UseDroppable<T>
+where
+    T: Debug + Clone + Copy + PartialEq + Eq + Hash + PartialOrd + Ord + Send + Sync + 'static,
+{
     let ctx = use_dnd_context();
     let node_ref = NodeRef::<Div>::new();
+
+    let id = id.into();
 
     let is_over = Signal::derive(move || ctx.over.get() == Some(id));
 
@@ -141,7 +159,7 @@ pub fn use_droppable_with(id: DroppableId, disabled: Signal<bool>) -> UseDroppab
         ctx.droppables.with(|map| {
             // Sort by axis-relevant edge so the index order matches the
             // visual stacking order.
-            let mut items: Vec<(DroppableId, taino_dnd_core::Rect)> =
+            let mut items: Vec<(DroppableId<T>, taino_dnd_core::Rect)> =
                 map.iter().map(|(d, r)| (*d, *r)).collect();
             let axis = detect_axis(&items);
             items.sort_by(|a, b| {
